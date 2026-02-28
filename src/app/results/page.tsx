@@ -13,6 +13,7 @@ import { AnalyticsGrid } from "@/components/results/AnalyticsGrid";
 import { CounterfactualPanel } from "@/components/results/CounterfactualPanel";
 import { CorrelationHeatmap } from "@/components/results/CorrelationHeatmap";
 import { ShareCard } from "@/components/results/ShareCard";
+import { GifReplayButton } from "@/components/results/GifReplayButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { loadPriceDataMap } from "@/data/loaders";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -389,6 +390,8 @@ export default function ResultsPage() {
         >
           {copied ? "Copied! ✓" : "Copy Results"}
         </button>
+        {/* Animated GIF replay */}
+        <GifReplayButton history={history} scenario={state.config.scenario} />
         {/* Challenge a friend */}
         <button
           onClick={handleCopyChallenge}
