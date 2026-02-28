@@ -43,11 +43,11 @@ export default function LandingPage() {
           Mr. Money<span className="text-accent"> Bags</span>
         </h1>
         <p className="text-xl md:text-2xl font-bold text-primary mb-4 max-w-lg">
-          Hey Mr. Money Bags, I heard you have some money to invest and think you can beat the market?
+          Hey Mr. Money Bags, I heard you have some money to invest and think you can beat the market.
         </p>
         <p className="text-secondary text-base max-w-md mb-2">
           Simulate famous market crashes and bull runs with real historical data.
-          Rules, options, shorts. Snark included at no extra charge.
+          Rules, options, shorts. Try it here so you don&apos;t lose all your real money.
         </p>
         <p className="text-muted text-xs font-mono mb-8">
           6 scenarios · 22 instruments · 100% fake money
