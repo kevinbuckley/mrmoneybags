@@ -61,7 +61,7 @@ export function AdInterstitial({ onDismiss }: AdInterstitialProps) {
         ) : (
           <ins
             className="adsbygoogle"
-            style={{ display: "block", width: "100%", maxWidth: 480 }}
+            style={{ display: "block", width: "100%", maxWidth: 480, minHeight: 280 }}
             data-ad-client={PUB_ID}
             data-ad-slot={SLOT_ID}
             data-ad-format="auto"
