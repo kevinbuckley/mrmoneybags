@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { LeaderboardEntry } from "@/types/leaderboard";
+import type { PortfolioSnapshot } from "@/types/portfolio";
 
 interface PersonalBest {
   returnPct: number;
@@ -11,12 +12,23 @@ interface PersonalBest {
 
 interface LeaderboardStore {
   entries: LeaderboardEntry[];
+  // Global personal best (all-time, all scenarios)
   personalBest: PersonalBest | null;
+  // Per-scenario personal bests: slug → best
+  scenarioPersonalBests: Record<string, PersonalBest>;
+  // Streak (day-based: consecutive calendar days with at least one completed run)
   streak: number;
   bestStreak: number;
+  lastPlayedDate: string | null; // YYYY-MM-DD
+  // Last run history per scenario slug — used to render ghost line on next run
+  lastRunHistories: Record<string, PortfolioSnapshot[]>;
+  // Actions
   addEntry: (entry: LeaderboardEntry) => void;
   updatePersonalBest: (returnPct: number) => void;
-  updateStreak: (isProfit: boolean) => void;
+  updateScenarioPersonalBest: (slug: string, returnPct: number) => void;
+  /** Day-based: increments once per calendar day regardless of profit/loss */
+  updateStreak: () => void;
+  setLastRunHistory: (slug: string, history: PortfolioSnapshot[]) => void;
   clearEntries: () => void;
 }
 
@@ -25,8 +37,11 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
     (set) => ({
       entries: [],
       personalBest: null,
+      scenarioPersonalBests: {},
       streak: 0,
       bestStreak: 0,
+      lastPlayedDate: null,
+      lastRunHistories: {},
 
       addEntry: (entry) =>
         set((s) => {
@@ -42,21 +57,60 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
           return {};
         }),
 
-      updateStreak: (isProfit) =>
+      updateScenarioPersonalBest: (slug, returnPct) =>
         set((s) => {
-          const newStreak = isProfit ? s.streak + 1 : 0;
+          const existing = s.scenarioPersonalBests[slug];
+          if (!existing || returnPct > existing.returnPct) {
+            return {
+              scenarioPersonalBests: {
+                ...s.scenarioPersonalBests,
+                [slug]: { returnPct, date: new Date().toISOString().slice(0, 10) },
+              },
+            };
+          }
+          return {};
+        }),
+
+      updateStreak: () =>
+        set((s) => {
+          const today = new Date().toISOString().slice(0, 10);
+          if (s.lastPlayedDate === today) return {}; // already played today
+          const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+          const newStreak = s.lastPlayedDate === yesterday ? s.streak + 1 : 1;
           return {
             streak: newStreak,
             bestStreak: Math.max(s.bestStreak, newStreak),
+            lastPlayedDate: today,
           };
         }),
 
-      clearEntries: () => set({ entries: [], personalBest: null, streak: 0, bestStreak: 0 }),
+      setLastRunHistory: (slug, history) =>
+        set((s) => ({
+          lastRunHistories: {
+            ...s.lastRunHistories,
+            // Thin to 500 snapshots max so localStorage stays manageable
+            [slug]: history.length > 500
+              ? history.filter((_, i) => i % Math.ceil(history.length / 500) === 0)
+              : history,
+          },
+        })),
+
+      clearEntries: () =>
+        set({
+          entries: [],
+          personalBest: null,
+          scenarioPersonalBests: {},
+          streak: 0,
+          bestStreak: 0,
+          lastPlayedDate: null,
+        }),
     }),
     {
       name: "mrmoneybags-leaderboard",
       onRehydrateStorage: () => (state, error) => {
         if (error) console.warn("Leaderboard storage corrupted, resetting.", error);
+        if (state && !state.lastRunHistories) state.lastRunHistories = {};
+        if (state && !state.scenarioPersonalBests) state.scenarioPersonalBests = {};
       },
     }
   )

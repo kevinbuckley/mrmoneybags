@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SCENARIOS } from "@/data/scenarios";
+import { StreakBadge } from "@/components/landing/StreakBadge";
+import { PersonalBestBadge } from "@/components/landing/PersonalBestBadge";
 
 export const metadata: Metadata = {
   title: "Mr. Money Bags — Invest Fake Money",
@@ -32,6 +34,7 @@ const SCENARIO_EMOJI: Record<string, string> = {
   "covid-crash": "🟡",
   "2021-bull-run": "🟢",
   "2022-crypto-winter": "🔴",
+  "tutorial": "🎓",
 };
 
 const DIFFICULTY_BADGE: Record<string, string> = {
@@ -59,8 +62,10 @@ export default function LandingPage() {
           Rules, options, shorts. Try it here so you don&apos;t lose all your real money.
         </p>
         <p className="text-muted text-xs font-mono mb-8">
-          6 scenarios · 22 instruments · 100% fake money
+          7 scenarios · 22 instruments · 100% fake money
         </p>
+        {/* Client component — shows streak badge if earned */}
+        <StreakBadge />
         <Link
           href="/setup"
           className="bg-accent text-white font-semibold rounded-xl px-10 py-4 text-base active:opacity-80 inline-flex items-center gap-2 hover:bg-accent/90 transition-colors"
@@ -82,7 +87,7 @@ export default function LandingPage() {
               className={`rounded-xl border p-4 transition-all hover:scale-[1.01] active:scale-[0.99] ${SCENARIO_COLOR[scenario.color]} ${scenario.slug === dailySlug ? "ring-1 ring-accent/40" : ""}`}
             >
               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="text-base">{SCENARIO_EMOJI[scenario.slug]}</span>
+                <span className="text-base">{SCENARIO_EMOJI[scenario.slug] ?? "⚪"}</span>
                 <span
                   className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${SCENARIO_BADGE[scenario.color]}`}
                 >
@@ -97,8 +102,14 @@ export default function LandingPage() {
                   </span>
                 )}
               </div>
-              <h3 className="text-primary font-semibold text-sm mb-0.5">{scenario.name}</h3>
-              <p className="text-secondary text-xs italic">{scenario.snarkDescription}</p>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-primary font-semibold text-sm mb-0.5">{scenario.name}</h3>
+                  <p className="text-secondary text-xs italic">{scenario.snarkDescription}</p>
+                </div>
+                {/* Client component: shows personal best if the user has played this scenario */}
+                <PersonalBestBadge scenarioSlug={scenario.slug} />
+              </div>
             </Link>
           ))}
         </div>

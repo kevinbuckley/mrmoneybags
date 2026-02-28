@@ -36,7 +36,9 @@ export default function ResultsPage() {
   const resetRules = useRulesStore((s) => s.reset);
   const addEntry = useLeaderboardStore((s) => s.addEntry);
   const updatePersonalBest = useLeaderboardStore((s) => s.updatePersonalBest);
+  const updateScenarioPersonalBest = useLeaderboardStore((s) => s.updateScenarioPersonalBest);
   const updateStreak = useLeaderboardStore((s) => s.updateStreak);
+  const setLastRunHistory = useLeaderboardStore((s) => s.setLastRunHistory);
   const personalBest = useLeaderboardStore((s) => s.personalBest);
   const streak = useLeaderboardStore((s) => s.streak);
   const addedRef = useRef(false);
@@ -60,7 +62,9 @@ export default function ResultsPage() {
     });
 
     updatePersonalBest(analytics.totalReturnPct);
-    updateStreak(analytics.totalReturnPct >= 0);
+    updateScenarioPersonalBest(state.config.scenario.slug, analytics.totalReturnPct);
+    updateStreak();
+    setLastRunHistory(state.config.scenario.slug, state.history);
 
     // Confetti for big wins
     if (analytics.totalReturnPct >= 0.2) {
@@ -68,7 +72,7 @@ export default function ResultsPage() {
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       });
     }
-  }, [analytics, state, addEntry, updatePersonalBest, updateStreak]);
+  }, [analytics, state, addEntry, updatePersonalBest, updateScenarioPersonalBest, updateStreak, setLastRunHistory]);
 
   // Guard: no state → redirect to setup
   useEffect(() => {
