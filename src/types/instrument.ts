@@ -42,7 +42,9 @@ export type OptionStrategy =
   | "bull_call_spread"
   | "bear_put_spread"
   | "straddle"
-  | "iron_condor";
+  | "iron_condor"
+  /** Writing (selling) a cash-secured put; premium received upfront */
+  | "short_put";
 
 export interface OptionConfig {
   underlying: string;

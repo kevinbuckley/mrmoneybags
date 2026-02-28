@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSimulationStore } from "@/store/simulationStore";
 import { TradePanel } from "./TradePanel";
 import { formatCurrency } from "@/lib/format";
+import type { TradeOrder } from "@/types/portfolio";
 
 function positionEmoji(returnPct: number): string {
   if (returnPct >= 20) return "🔥";
@@ -14,6 +15,7 @@ function positionEmoji(returnPct: number): string {
 
 export function PortfolioPanel() {
   const state = useSimulationStore((s) => s.state);
+  const submitTrade = useSimulationStore((s) => s.submitTrade);
   const [tradeOpen, setTradeOpen] = useState(false);
   const [tradeTicker, setTradeTicker] = useState<string | null>(null);
   const [flash, setFlash] = useState<"gain" | "loss" | null>(null);
@@ -109,9 +111,9 @@ export function PortfolioPanel() {
         </div>
 
         {/* Positions */}
-        {portfolio && portfolio.positions.length > 0 && (
+        {portfolio && portfolio.positions.filter((p) => p.type !== "option").length > 0 && (
           <div className="flex flex-col gap-1">
-            {portfolio.positions.map((pos) => {
+            {portfolio.positions.filter((p) => p.type !== "option").map((pos) => {
               const weight = totalValue > 0 ? (pos.currentValue / totalValue) * 100 : 0;
               const entryValue = pos.quantity * pos.entryPrice;
               const posReturn =
@@ -161,6 +163,54 @@ export function PortfolioPanel() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Short puts section */}
+        {portfolio && portfolio.positions.some((p) => p.type === "option") && (
+          <div className="mt-2 pt-2 border-t border-border/50">
+            <p className="text-xs text-muted font-mono mb-1">Short Puts</p>
+            {portfolio.positions.filter((p) => p.type === "option").map((pos) => {
+              const config = pos.optionConfig;
+              if (!config) return null;
+              const premiumReceived = pos.entryPrice * pos.quantity;
+              const pnl = premiumReceived + pos.currentValue; // currentValue is negative
+              const isProfit = pnl >= 0;
+              const today = state?.history[state.history.length - 1]?.date ?? "";
+              const dte = today
+                ? Math.max(0, Math.round(
+                    (new Date(config.expiryDate).getTime() - new Date(today).getTime()) /
+                    (1000 * 60 * 60 * 24)
+                  ))
+                : 0;
+              return (
+                <div key={pos.id} className="flex items-center gap-2 py-1">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-xs font-mono text-secondary truncate">
+                        {config.underlying} ${config.strike}p · {dte} DTE
+                      </span>
+                      <span className={`text-xs font-mono font-bold shrink-0 ${isProfit ? "text-gain" : "text-loss"}`}>
+                        {isProfit ? "+" : ""}{formatCurrency(pnl)}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const order: TradeOrder = {
+                        ticker: pos.id,
+                        action: "close_option",
+                        source: "manual",
+                      };
+                      submitTrade(order);
+                    }}
+                    className="text-xs text-loss border border-loss/30 rounded px-2 py-0.5 hover:bg-loss/10 transition-colors shrink-0"
+                  >
+                    Close
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

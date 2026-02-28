@@ -9,7 +9,7 @@ import type { NarratorEvent } from "@/types/narrator";
 
 import { applyTrade, recomputeValues } from "./portfolio";
 import { evaluateRules } from "./rules";
-import { recomputeOptionValue, isExpiring, expiryIntrinsicValue } from "./options";
+import { recomputeOptionValue, isExpiring, expiryIntrinsicValue, processShortPutExpiry } from "./options";
 import { generateNarratorEvent } from "@/lib/narrator";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -174,15 +174,41 @@ export function advanceTick(
     portfolio = applyTrade(portfolio, order, priceData, date);
   }
 
-  // 4. Revalue and settle options
+  // 4. Revalue and settle options (two-pass: settle expiries first, then revalue live)
+  // Pass 4a: settle expiring short puts (cash-settled) + expiring long options
+  const shortPutExpiryEvents: NarratorEvent[] = [];
+  for (const pos of portfolio.positions) {
+    if (pos.type !== "option" || !pos.optionConfig) continue;
+    if (!isExpiring(pos, date)) continue;
+
+    const underlyingSeries = priceData.get(pos.optionConfig.underlying);
+    const underlyingClose = underlyingSeries?.[state.currentDateIndex]?.close ?? 0;
+
+    if (pos.optionConfig.strategy === "short_put") {
+      const { portfolio: settled, wasAssigned } = processShortPutExpiry(portfolio, pos, underlyingClose);
+      portfolio = settled;
+      shortPutExpiryEvents.push(makeEvent(
+        wasAssigned ? "option_exercised" : "option_expired_worthless",
+        { ticker: pos.optionConfig.underlying, scenario: scenarioName },
+        date
+      ));
+    }
+    // Long options: settle at intrinsic value (handled in pass 4b via isExpiring check)
+  }
+
+  // Pass 4b: revalue non-expiring options + settle expiring long options
   portfolio = {
     ...portfolio,
     positions: portfolio.positions.map((pos) => {
       if (pos.type !== "option" || !pos.optionConfig) return pos;
+      // Short puts that expired were already removed in pass 4a
+      if (pos.optionConfig.strategy === "short_put" && isExpiring(pos, date)) return pos;
+
       const underlyingSeries = priceData.get(pos.optionConfig.underlying);
       if (!underlyingSeries) return pos;
 
       if (isExpiring(pos, date)) {
+        // Long option: settle at intrinsic value
         const underlyingClose = underlyingSeries[state.currentDateIndex]?.close ?? 0;
         const intrinsic = expiryIntrinsicValue(pos, underlyingClose);
         return { ...pos, currentPrice: pos.quantity > 0 ? intrinsic / pos.quantity : 0, currentValue: intrinsic };
@@ -228,7 +254,7 @@ export function advanceTick(
     portfolio,
     history: [...state.history, snapshot],
     rulesLog: [...state.rulesLog, ...newRulesLog],
-    narratorQueue: [...state.narratorQueue, ...narratorEvents],
+    narratorQueue: [...state.narratorQueue, ...shortPutExpiryEvents, ...narratorEvents],
     pendingTrades: [],
     isComplete,
     config: { ...state.config, rules: updatedRules },

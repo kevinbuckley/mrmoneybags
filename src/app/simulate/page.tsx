@@ -10,6 +10,7 @@ import { NarratorPopup } from "@/components/narrator/NarratorPopup";
 import { PlaybackControls } from "@/components/simulation/PlaybackControls";
 import { PortfolioPanel } from "@/components/simulation/PortfolioPanel";
 import { AdInterstitial } from "@/components/ads/AdInterstitial";
+import { SellPutPanel } from "@/components/simulation/SellPutPanel";
 import { playSound } from "@/lib/sound";
 
 export default function SimulatePage() {
@@ -22,6 +23,7 @@ export default function SimulatePage() {
   const lastRunHistories = useLeaderboardStore((s) => s.lastRunHistories);
   const hasAutoStarted = useRef(false);
   const [adDismissed, setAdDismissed] = useState(false);
+  const [sellPutOpen, setSellPutOpen] = useState(false);
 
   // Auto-start only after ad is dismissed
   useEffect(() => {
@@ -112,8 +114,23 @@ export default function SimulatePage() {
         </div>
       )}
 
+      {/* Sell Put button (only while simulation is running) */}
+      {!state?.isComplete && (
+        <div className="px-4 pb-1 flex justify-end">
+          <button
+            onClick={() => setSellPutOpen(true)}
+            className="text-xs text-secondary border border-border rounded-lg px-3 py-1.5 hover:border-secondary hover:text-primary transition-colors"
+          >
+            📉 Sell Put
+          </button>
+        </div>
+      )}
+
       {/* Playback controls */}
       <PlaybackControls />
+
+      {/* Sell Put Panel */}
+      <SellPutPanel open={sellPutOpen} onClose={() => setSellPutOpen(false)} />
 
       {/* Narrator popups (fixed top-right, non-blocking) */}
       <NarratorPopup />

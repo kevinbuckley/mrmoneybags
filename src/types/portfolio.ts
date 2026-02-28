@@ -46,12 +46,26 @@ export interface PortfolioSnapshot {
 
 export interface TradeOrder {
   ticker: string;
-  action: "buy" | "sell_pct" | "sell_all" | "rebalance" | "move_to_cash";
-  amount?: number; // dollar amount (for buy)
-  quantity?: number; // units (for sell)
+  action:
+    | "buy"
+    | "sell_pct"
+    | "sell_all"
+    | "rebalance"
+    | "move_to_cash"
+    /** Write a cash-secured put; creates short option position, credits premium to cash */
+    | "sell_put"
+    /** Buy back an open short option at its current market value */
+    | "close_option";
+  amount?: number;    // dollar amount (for buy)
+  quantity?: number;  // units (for sell); also 0-100 pct for sell_pct
   targetPct?: number; // 0-1 (for rebalance)
   source: "manual" | "rule";
   ruleId?: string;
+  // Options-specific fields (sell_put / close_option)
+  strike?: number;        // strike price
+  expiryDate?: string;    // YYYY-MM-DD expiry
+  numContracts?: number;  // number of 100-share contracts (default 1)
+  premium?: number;       // total $ premium pre-computed by the UI
 }
 
 // Initial portfolio setup from the wizard

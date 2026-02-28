@@ -157,10 +157,77 @@ function applyMoveToCash(
 ): Portfolio {
   let result = portfolio;
   for (const pos of [...portfolio.positions]) {
+    // Don't force-close option positions on move_to_cash
+    if (pos.type === "option") continue;
     const price = getPriceOnDate(priceData, pos.ticker, date, "open");
     result = applySellAll(result, pos.ticker, price > 0 ? price : pos.currentPrice);
   }
   return result;
+}
+
+/**
+ * Write (sell) a cash-secured put.
+ * - Premium is credited to cash immediately (order.premium must be pre-computed by UI)
+ * - Creates a short option position with currentValue = -BSFairValue * contracts
+ * - Net effect on totalValue = 0 on day 0 (premium in cash offsets liability)
+ */
+function applyShortPut(
+  portfolio: Portfolio,
+  order: TradeOrder,
+  date: string
+): Portfolio {
+  const premium = order.premium ?? 0;
+  const numContracts = order.numContracts ?? 1;
+  const strike = order.strike ?? 0;
+  const expiryDate = order.expiryDate ?? "";
+  if (premium <= 0 || strike <= 0 || !expiryDate) return portfolio;
+
+  // Starting currentValue = -premium (the liability exactly offsets the cash received)
+  const positionId = `${order.ticker}-${strike}p-${expiryDate}-${date}`;
+  const newPos: Position = {
+    id: positionId,
+    ticker: positionId, // synthetic ticker for display
+    name: `${order.ticker} $${strike} Put (short) exp ${expiryDate}`,
+    type: "option",
+    quantity: numContracts,
+    entryPrice: premium / numContracts, // premium per contract
+    entryDate: date,
+    currentPrice: premium / numContracts,
+    currentValue: -premium, // starts as liability equal to premium received
+    optionConfig: {
+      underlying: order.ticker,
+      strategy: "short_put",
+      type: "put",
+      strike,
+      expiryDate,
+      numContracts,
+    },
+  };
+
+  const newCash = portfolio.cashBalance + premium;
+  const positions = [...portfolio.positions, newPos];
+  const totalPositionValue = positions.reduce((s, p) => s + p.currentValue, 0);
+  return { ...portfolio, positions, cashBalance: newCash, totalValue: newCash + totalPositionValue };
+}
+
+/**
+ * Close (buy back) an open short option position at its current market value.
+ * Debits the cost-to-close from cash and removes the position.
+ * order.ticker = position.id (the synthetic option position ID)
+ */
+function applyCloseOption(portfolio: Portfolio, order: TradeOrder): Portfolio {
+  // Find by position id (stored as ticker on option positions)
+  const pos = portfolio.positions.find(
+    (p) => p.type === "option" && (p.id === order.ticker || p.ticker === order.ticker)
+  );
+  if (!pos) return portfolio;
+
+  // Cost to close = absolute current value of the short position
+  const costToClose = Math.abs(pos.currentValue);
+  const newCash = portfolio.cashBalance - costToClose;
+  const positions = portfolio.positions.filter((p) => p.id !== pos.id);
+  const totalPositionValue = positions.reduce((s, p) => s + p.currentValue, 0);
+  return { ...portfolio, positions, cashBalance: newCash, totalValue: newCash + totalPositionValue };
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -185,6 +252,10 @@ export function applyTrade(
       return applyRebalance(portfolio, order, price, date);
     case "move_to_cash":
       return applyMoveToCash(portfolio, priceData, date);
+    case "sell_put":
+      return applyShortPut(portfolio, order, date);
+    case "close_option":
+      return applyCloseOption(portfolio, order);
   }
 }
 
