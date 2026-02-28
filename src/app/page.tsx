@@ -34,7 +34,16 @@ const SCENARIO_EMOJI: Record<string, string> = {
   "2022-crypto-winter": "🔴",
 };
 
+const DIFFICULTY_BADGE: Record<string, string> = {
+  Easy: "text-gain bg-gain/10",
+  Hard: "text-yellow-400 bg-yellow-500/10",
+  Brutal: "text-loss bg-loss/10",
+};
+
 export default function LandingPage() {
+  const dailyIdx = Math.floor(Date.now() / 86400000) % SCENARIOS.length;
+  const dailySlug = SCENARIOS[dailyIdx].slug;
+
   return (
     <main className="min-h-screen flex flex-col">
       {/* Hero */}
@@ -70,15 +79,23 @@ export default function LandingPage() {
             <Link
               key={scenario.slug}
               href="/setup"
-              className={`rounded-xl border p-4 transition-all hover:scale-[1.01] active:scale-[0.99] ${SCENARIO_COLOR[scenario.color]}`}
+              className={`rounded-xl border p-4 transition-all hover:scale-[1.01] active:scale-[0.99] ${SCENARIO_COLOR[scenario.color]} ${scenario.slug === dailySlug ? "ring-1 ring-accent/40" : ""}`}
             >
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-base">{SCENARIO_EMOJI[scenario.slug]}</span>
                 <span
                   className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${SCENARIO_BADGE[scenario.color]}`}
                 >
                   {scenario.startDate.slice(0, 4)}–{scenario.endDate.slice(0, 4)}
                 </span>
+                <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${DIFFICULTY_BADGE[scenario.difficulty]}`}>
+                  {scenario.difficulty}
+                </span>
+                {scenario.slug === dailySlug && (
+                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full text-accent bg-accent/10">
+                    🎯 Daily
+                  </span>
+                )}
               </div>
               <h3 className="text-primary font-semibold text-sm mb-0.5">{scenario.name}</h3>
               <p className="text-secondary text-xs italic">{scenario.snarkDescription}</p>

@@ -11,6 +11,7 @@ export const SCENARIOS: Scenario[] = [
     description: "The collapse of the US housing market triggered a global financial crisis.",
     snarkDescription: "Banks go boom. Everyone suffers.",
     color: "red",
+    difficulty: "Brutal",
     riskFreeRate: 0.02,
     events: [
       { date: "2008-03-14", label: "Bear Stearns", description: "Bear Stearns collapses, rescued by JP Morgan." },
@@ -28,6 +29,7 @@ export const SCENARIOS: Scenario[] = [
     description: "The tech bubble burst as internet companies collapsed.",
     snarkDescription: "Tech goes to the moon, then the floor.",
     color: "red",
+    difficulty: "Hard",
     riskFreeRate: 0.055,
     events: [
       { date: "2000-03-10", label: "NASDAQ Peak", description: "NASDAQ hits all-time high of 5,048." },
@@ -42,6 +44,7 @@ export const SCENARIOS: Scenario[] = [
     description: "The Dow fell 22.6% in a single day — the largest single-day crash in history.",
     snarkDescription: "One very bad Monday.",
     color: "red",
+    difficulty: "Hard",
     riskFreeRate: 0.06,
     events: [
       { date: "1987-10-19", label: "Black Monday", description: "Dow Jones drops 22.6% in a single session." },
@@ -55,6 +58,7 @@ export const SCENARIOS: Scenario[] = [
     description: "Markets crashed 34% in 33 days, then staged a historic recovery.",
     snarkDescription: "The world ends. Then doesn't.",
     color: "yellow",
+    difficulty: "Hard",
     riskFreeRate: 0.005,
     events: [
       { date: "2020-02-19", label: "Market Peak", description: "S&P 500 hits pre-crash all-time high." },
@@ -71,6 +75,7 @@ export const SCENARIOS: Scenario[] = [
     description: "The fastest bull market recovery in history, fueled by stimulus and meme stocks.",
     snarkDescription: "Number only go up. For a while.",
     color: "green",
+    difficulty: "Easy",
     riskFreeRate: 0.0025,
     events: [
       { date: "2021-01-27", label: "GME Squeeze", description: "GameStop short squeeze peaks; WSB goes mainstream." },
@@ -85,6 +90,7 @@ export const SCENARIOS: Scenario[] = [
     description: "Crypto markets lost $2 trillion in value. LUNA went to zero. FTX collapsed.",
     snarkDescription: "LUNA goes to actual zero.",
     color: "red",
+    difficulty: "Brutal",
     riskFreeRate: 0.03,
     events: [
       { date: "2022-05-12", label: "LUNA Collapse", description: "TerraUSD and LUNA collapse to near zero." },

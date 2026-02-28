@@ -14,6 +14,7 @@ export interface Scenario {
   description: string;
   snarkDescription: string; // snarky one-liner for UI cards
   color: "red" | "green" | "yellow";
+  difficulty: "Easy" | "Hard" | "Brutal"; // subjective survivability rating
   riskFreeRate: number; // annualized decimal, e.g. 0.02
   events: ScenarioEvent[];
 }

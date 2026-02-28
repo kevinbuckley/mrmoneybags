@@ -11,6 +11,8 @@ import { useLeaderboardStore } from "@/store/leaderboardStore";
 import { PortfolioChart } from "@/components/charts/PortfolioChart";
 import { AnalyticsGrid } from "@/components/results/AnalyticsGrid";
 import { ShareCard } from "@/components/results/ShareCard";
+import { Spinner } from "@/components/ui/Spinner";
+import { loadPriceDataMap } from "@/data/loaders";
 import { formatCurrency } from "@/lib/format";
 
 const GRADE_COLOR: Record<string, string> = {
@@ -28,6 +30,8 @@ export default function ResultsPage() {
   const analytics = useAnalytics();
   const state = useSimulationStore((s) => s.state);
   const resetSim = useSimulationStore((s) => s.reset);
+  const initSimulation = useSimulationStore((s) => s.initSimulation);
+  const submitTrade = useSimulationStore((s) => s.submitTrade);
   const resetPortfolio = usePortfolioStore((s) => s.reset);
   const resetRules = useRulesStore((s) => s.reset);
   const addEntry = useLeaderboardStore((s) => s.addEntry);
@@ -37,6 +41,7 @@ export default function ResultsPage() {
   const streak = useLeaderboardStore((s) => s.streak);
   const addedRef = useRef(false);
   const [copied, setCopied] = useState(false);
+  const [replaying, setReplaying] = useState(false);
 
   // Add to leaderboard, update streak + personal best — once per result
   useEffect(() => {
@@ -75,6 +80,24 @@ export default function ResultsPage() {
     resetPortfolio();
     resetRules();
     router.push("/setup");
+  };
+
+  const handleReplay = async () => {
+    if (!state || replaying) return;
+    setReplaying(true);
+    addedRef.current = false; // allow re-recording result
+    try {
+      const { scenario, startingCapital, allocations, rules: rulesCfg, mode, granularity } = state.config;
+      const tickers = allocations.map((a) => a.ticker);
+      const priceData = await loadPriceDataMap(tickers, scenario.slug);
+      initSimulation({ startingCapital, scenario, allocations, rules: rulesCfg, mode, granularity }, priceData);
+      allocations.forEach((alloc) => {
+        submitTrade({ ticker: alloc.ticker, action: "buy", amount: (alloc.pct / 100) * startingCapital, source: "manual" });
+      });
+      router.push("/simulate");
+    } catch {
+      setReplaying(false);
+    }
   };
 
   const handleCopy = () => {
@@ -244,6 +267,14 @@ export default function ResultsPage() {
 
       {/* Actions */}
       <div className="flex flex-col gap-3">
+        {/* Replay same setup */}
+        <button
+          onClick={handleReplay}
+          disabled={replaying}
+          className="bg-elevated text-accent font-semibold rounded-xl px-6 py-3 text-sm border border-accent/30 min-h-[44px] flex items-center justify-center gap-2 hover:bg-accent/10 transition-colors disabled:opacity-60"
+        >
+          {replaying ? <><Spinner size="sm" /> Re-running...</> : "↩ Replay Same Setup"}
+        </button>
         {/* Copy results */}
         <button
           onClick={handleCopy}

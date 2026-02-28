@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SCENARIOS } from "@/data/scenarios";
 import { INSTRUMENTS } from "@/data/instruments";
@@ -58,6 +58,23 @@ const SCENARIO_BADGE_VARIANT: Record<string, "loss" | "gain" | "neutral"> = {
   green: "gain",
   yellow: "neutral",
 };
+
+const DIFFICULTY_BADGE: Record<string, string> = {
+  Easy: "text-gain bg-gain/10",
+  Hard: "text-yellow-400 bg-yellow-500/10",
+  Brutal: "text-loss bg-loss/10",
+};
+
+const LOADING_MESSAGES = [
+  "Crunching fake numbers...",
+  "Loading historical disasters...",
+  "Preparing your financial doom...",
+  "Fetching real data for your fake money...",
+  "Simulating poor decisions...",
+  "Teaching lessons the hard way...",
+  "Warning Wall Street about your moves...",
+  "Calculating regret in advance...",
+];
 
 interface ConditionForm {
   subject: RuleSubject;
@@ -293,6 +310,8 @@ function StepCapital() {
 function StepScenario() {
   const selectedScenario = usePortfolioStore((s) => s.scenario);
   const setScenario = usePortfolioStore((s) => s.setScenario);
+  const dailyIdx = Math.floor(Date.now() / 86400000) % SCENARIOS.length;
+  const dailySlug = SCENARIOS[dailyIdx].slug;
 
   return (
     <div className="flex flex-col gap-4">
@@ -303,6 +322,7 @@ function StepScenario() {
       <div className="flex flex-col gap-2">
         {SCENARIOS.map((scenario) => {
           const selected = selectedScenario?.slug === scenario.slug;
+          const isDaily = scenario.slug === dailySlug;
           return (
             <button
               key={scenario.slug}
@@ -310,13 +330,23 @@ function StepScenario() {
               className={`rounded-xl border p-4 text-left transition-all ${
                 selected
                   ? `${SCENARIO_RING[scenario.color]} bg-elevated ring-1 ring-accent/30`
+                  : isDaily
+                  ? "border-accent/40 hover:border-accent/60"
                   : "border-border hover:border-secondary"
               }`}
             >
-              <div className="flex items-center gap-2 mb-0.5">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                 <Badge variant={SCENARIO_BADGE_VARIANT[scenario.color]}>
                   {scenario.startDate.slice(0, 4)}–{scenario.endDate.slice(0, 4)}
                 </Badge>
+                <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${DIFFICULTY_BADGE[scenario.difficulty]}`}>
+                  {scenario.difficulty}
+                </span>
+                {isDaily && (
+                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-full text-accent bg-accent/10">
+                    🎯 Daily
+                  </span>
+                )}
                 {selected && <Badge variant="accent">Selected</Badge>}
               </div>
               <p className="text-primary font-semibold text-sm mt-1">{scenario.name}</p>
@@ -925,15 +955,38 @@ function StepReview({ launching }: { launching: boolean }) {
 
 export default function SetupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState(0);
   const [launching, setLaunching] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
 
   const scenario = usePortfolioStore((s) => s.scenario);
+  const setScenario = usePortfolioStore((s) => s.setScenario);
   const startingCapital = usePortfolioStore((s) => s.startingCapital);
   const allocations = usePortfolioStore((s) => s.allocations);
   const rules = useRulesStore((s) => s.rules);
   const initSimulation = useSimulationStore((s) => s.initSimulation);
   const submitTrade = useSimulationStore((s) => s.submitTrade);
+
+  // Auto-select daily challenge scenario if ?challenge=1
+  useEffect(() => {
+    if (searchParams.get("challenge") === "1" && !scenario) {
+      const dailyIdx = Math.floor(Date.now() / 86400000) % SCENARIOS.length;
+      setScenario(SCENARIOS[dailyIdx]);
+      setStep(1);
+    }
+  }, []);
+
+  // Rotate loading messages during launch
+  useEffect(() => {
+    if (!launching) return;
+    let idx = 1;
+    const t = setInterval(() => {
+      setLoadingMsg(LOADING_MESSAGES[idx % LOADING_MESSAGES.length]);
+      idx++;
+    }, 700);
+    return () => clearInterval(t);
+  }, [launching]);
 
   const canProceed = (): boolean => {
     if (step === 1) return !!scenario;
@@ -1020,7 +1073,7 @@ export default function SetupPage() {
           disabled={!canProceed() || launching}
         >
           {launching ? (
-            <><Spinner size="sm" /> Loading...</>
+            <><Spinner size="sm" /> {loadingMsg}</>
           ) : step === STEPS.length - 1 ? (
             "Launch Simulation"
           ) : (
