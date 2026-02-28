@@ -11,7 +11,6 @@ import { useLeaderboardStore } from "@/store/leaderboardStore";
 import { PortfolioChart } from "@/components/charts/PortfolioChart";
 import { AnalyticsGrid } from "@/components/results/AnalyticsGrid";
 import { ShareCard } from "@/components/results/ShareCard";
-import { AdCard } from "@/components/ads/AdCard";
 import { formatCurrency } from "@/lib/format";
 
 export default function ResultsPage() {
@@ -125,11 +124,6 @@ export default function ResultsPage() {
           </p>
         </div>
       )}
-
-      {/* Ad card */}
-      <div className="mb-6">
-        <AdCard />
-      </div>
 
       {/* Share card */}
       {analytics && (
