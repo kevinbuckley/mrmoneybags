@@ -1,4 +1,4 @@
-# MoneyBags — Claude Code Instructions
+# Mr. Money Bags — Claude Code Instructions
 
 ## Commit Rules
 

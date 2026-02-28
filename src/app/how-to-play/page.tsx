@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "How to Play",
   description:
-    "Learn how to simulate market crashes and bull runs in MoneyBags. Pick a scenario, build a portfolio, set trading rules, and watch your fake money disappear.",
+    "Learn how to simulate market crashes and bull runs in Mr. Money Bags. Pick a scenario, build a portfolio, set trading rules, and watch your fake money disappear.",
 };
 
 interface Step {

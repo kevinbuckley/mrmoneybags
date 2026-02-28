@@ -31,7 +31,7 @@ export function ShareCard({
         scale: 2,
       });
       const link = document.createElement("a");
-      link.download = `moneybags-${scenarioName.toLowerCase().replace(/\s+/g, "-")}.png`;
+      link.download = `mrmoneybags-${scenarioName.toLowerCase().replace(/\s+/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
     } finally {
@@ -52,8 +52,8 @@ export function ShareCard({
         <div className="flex items-start justify-between">
           <div>
             <p className="text-muted text-xs font-mono uppercase tracking-wider mb-1">
-              MoneyBags
-            </p>
+              Mr. Money Bags
+</p>
             <p className="text-primary font-semibold text-sm">{scenarioName}</p>
           </div>
           <span className={`text-2xl font-bold font-mono ${isGain ? "text-gain" : "text-loss"}`}>

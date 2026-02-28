@@ -54,7 +54,7 @@ export const useLeaderboardStore = create<LeaderboardStore>()(
       clearEntries: () => set({ entries: [], personalBest: null, streak: 0, bestStreak: 0 }),
     }),
     {
-      name: "moneybags-leaderboard",
+      name: "mrmoneybags-leaderboard",
       onRehydrateStorage: () => (state, error) => {
         if (error) console.warn("Leaderboard storage corrupted, resetting.", error);
       },
