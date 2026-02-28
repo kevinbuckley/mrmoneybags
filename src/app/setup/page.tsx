@@ -1054,7 +1054,9 @@ export default function SetupPage() {
     setLaunching(true);
     try {
       const tickers = allocations.map((a) => a.ticker);
-      const priceData = await loadPriceDataMap(tickers, scenario.slug);
+      // Always include SPY for the benchmark overlay; loader handles missing gracefully
+      const tickersWithSpy = tickers.includes("SPY") ? tickers : [...tickers, "SPY"];
+      const priceData = await loadPriceDataMap(tickersWithSpy, scenario.slug);
       const config = {
         startingCapital,
         scenario,

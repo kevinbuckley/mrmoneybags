@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAnalytics } from "@/hooks/useAnalytics";
@@ -13,7 +13,7 @@ import { AnalyticsGrid } from "@/components/results/AnalyticsGrid";
 import { ShareCard } from "@/components/results/ShareCard";
 import { Spinner } from "@/components/ui/Spinner";
 import { loadPriceDataMap } from "@/data/loaders";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 
 const GRADE_COLOR: Record<string, string> = {
   "A+": "text-gain",
@@ -29,6 +29,7 @@ export default function ResultsPage() {
   const router = useRouter();
   const analytics = useAnalytics();
   const state = useSimulationStore((s) => s.state);
+  const priceData = useSimulationStore((s) => s.priceData);
   const resetSim = useSimulationStore((s) => s.reset);
   const initSimulation = useSimulationStore((s) => s.initSimulation);
   const submitTrade = useSimulationStore((s) => s.submitTrade);
@@ -39,11 +40,32 @@ export default function ResultsPage() {
   const updateScenarioPersonalBest = useLeaderboardStore((s) => s.updateScenarioPersonalBest);
   const updateStreak = useLeaderboardStore((s) => s.updateStreak);
   const setLastRunHistory = useLeaderboardStore((s) => s.setLastRunHistory);
+  const lastRunHistories = useLeaderboardStore((s) => s.lastRunHistories);
   const personalBest = useLeaderboardStore((s) => s.personalBest);
   const streak = useLeaderboardStore((s) => s.streak);
   const addedRef = useRef(false);
   const [copied, setCopied] = useState(false);
   const [replaying, setReplaying] = useState(false);
+  // History scrubber: null = show full history
+  const [scrubIndex, setScrubIndex] = useState<number | null>(null);
+
+  // Ghost line: previous run for same scenario slug
+  const ghostData = state ? lastRunHistories[state.config.scenario.slug] : undefined;
+
+  // Benchmark: SPY series normalised to starting portfolio value (full history)
+  const benchmarkDataFull = useMemo(() => {
+    if (!state || !priceData) return undefined;
+    const spySeries = priceData.get("SPY");
+    if (!spySeries || spySeries.length === 0) return undefined;
+    const spyStart = spySeries[0]?.close;
+    const sv = state.portfolio.startingValue;
+    if (!spyStart || !sv) return undefined;
+    const spyMap = new Map(spySeries.map((p) => [p.date, p.close]));
+    return state.history.map((snap) => {
+      const spyClose = spyMap.get(snap.date) ?? spyStart;
+      return { date: snap.date, value: (spyClose / spyStart) * sv };
+    });
+  }, [state, priceData]);
 
   // Add to leaderboard, update streak + personal best — once per result
   useEffect(() => {
@@ -137,6 +159,13 @@ export default function ResultsPage() {
     ? analytics.totalReturnPct > analytics.hodlReturnPct
     : false;
 
+  // Scrubber: which slice of history to display
+  const effectiveScrubIndex = scrubIndex ?? history.length;
+  const displayedHistory = effectiveScrubIndex < history.length
+    ? history.slice(0, effectiveScrubIndex)
+    : history;
+  const displayedBenchmark = benchmarkDataFull?.slice(0, displayedHistory.length);
+
   return (
     <main className="min-h-screen px-4 py-6 max-w-lg mx-auto pb-12">
       {/* Back nav */}
@@ -223,9 +252,36 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* Full history chart */}
+      {/* Full history chart + scrubber */}
       <div className="mb-6">
-        <PortfolioChart history={history} events={events} height={200} />
+        <PortfolioChart
+          history={displayedHistory}
+          events={events}
+          height={200}
+          benchmarkData={displayedBenchmark}
+          ghostData={ghostData}
+        />
+        {history.length > 2 && (
+          <div className="mt-2 px-1">
+            <input
+              type="range"
+              min={1}
+              max={history.length}
+              value={effectiveScrubIndex}
+              onChange={(e) => setScrubIndex(Number(e.target.value))}
+              className="w-full accent-accent h-1 cursor-pointer"
+            />
+            <div className="flex justify-between text-muted text-xs font-mono mt-1">
+              <span>{formatDate(history[0]?.date ?? "", true)}</span>
+              <span className="text-secondary">
+                {displayedHistory[displayedHistory.length - 1]?.date !== history[history.length - 1]?.date
+                  ? formatDate(displayedHistory[displayedHistory.length - 1]?.date ?? "", true)
+                  : ""}
+              </span>
+              <span>{formatDate(history[history.length - 1]?.date ?? "", true)}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Analytics grid */}

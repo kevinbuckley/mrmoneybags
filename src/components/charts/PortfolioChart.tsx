@@ -1,8 +1,9 @@
 "use client";
 
 import {
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   Tooltip,
@@ -19,51 +20,88 @@ interface PortfolioChartProps {
   history: PortfolioSnapshot[];
   events?: ScenarioEvent[];
   height?: number;
+  /** Benchmark series (e.g. SPY) normalised to starting portfolio value */
+  benchmarkData?: Array<{ date: string; value: number }>;
+  /** Previous run history for same scenario — "beat your last run" ghost line */
+  ghostData?: PortfolioSnapshot[];
+}
+
+interface ChartPoint {
+  date: string;
+  totalValue: number;
+  cumulativeReturn: number;
+  benchmark?: number;
+  ghost?: number;
 }
 
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
-  const val = payload[0]?.value ?? 0;
-  const pct = payload[0]?.payload?.cumulativeReturn as number | undefined;
+  const point = payload[0]?.payload as ChartPoint | undefined;
+  const val = payload.find((p) => p.dataKey === "totalValue")?.value ?? 0;
+  const pct = point?.cumulativeReturn;
+  const bm = point?.benchmark;
+  const ghost = point?.ghost;
   return (
-    <div className="bg-elevated border border-border rounded-lg px-3 py-2 text-xs shadow-lg">
+    <div className="bg-elevated border border-border rounded-lg px-3 py-2 text-xs shadow-lg min-w-[140px]">
       <p className="text-secondary mb-1">{formatDate(label as string, true)}</p>
-      <p className="text-primary font-mono font-semibold">{formatCurrency(val)}</p>
+      <p className="text-primary font-mono font-semibold">{formatCurrency(val as number)}</p>
       {pct !== undefined && (
         <p className={`font-mono text-xs ${pct >= 0 ? "text-gain" : "text-loss"}`}>
           {pct >= 0 ? "+" : ""}{(pct * 100).toFixed(1)}% total
         </p>
       )}
+      {bm !== undefined && (
+        <p className="font-mono text-xs text-secondary mt-0.5">SPY: {formatCurrency(bm, true)}</p>
+      )}
+      {ghost !== undefined && (
+        <p className="font-mono text-xs text-muted mt-0.5">Prev: {formatCurrency(ghost, true)}</p>
+      )}
     </div>
   );
 }
 
-export function PortfolioChart({ history, events = [], height = 240 }: PortfolioChartProps) {
+export function PortfolioChart({
+  history,
+  events = [],
+  height = 240,
+  benchmarkData,
+  ghostData,
+}: PortfolioChartProps) {
   if (history.length === 0) {
     return (
-      <div
-        className="flex items-center justify-center text-muted text-xs"
-        style={{ height }}
-      >
+      <div className="flex items-center justify-center text-muted text-xs" style={{ height }}>
         No data yet
       </div>
     );
   }
 
+  // Scale ghost to same starting value as current run
+  const ghostScale =
+    history[0]?.totalValue && ghostData?.[0]?.totalValue
+      ? history[0].totalValue / ghostData[0].totalValue
+      : 1;
+
+  const chartData: ChartPoint[] = history.map((snap, i) => ({
+    date: snap.date,
+    totalValue: snap.totalValue,
+    cumulativeReturn: snap.cumulativeReturn,
+    benchmark: benchmarkData?.[i]?.value,
+    ghost: ghostData?.[i] ? ghostData[i].totalValue * ghostScale : undefined,
+  }));
+
+  const hasBenchmark = !!benchmarkData && benchmarkData.length > 0;
+  const hasGhost = !!ghostData && ghostData.length > 0;
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={history} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      <ComposedChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="var(--color-gain)" stopOpacity={0.2} />
             <stop offset="95%" stopColor="var(--color-gain)" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke="var(--color-border)"
-          vertical={false}
-        />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
         <XAxis
           dataKey="date"
           tick={{ fill: "var(--color-secondary)", fontSize: 10 }}
@@ -87,14 +125,36 @@ export function PortfolioChart({ history, events = [], height = 240 }: Portfolio
             stroke="var(--color-accent)"
             strokeDasharray="4 4"
             strokeWidth={1}
-            label={{
-              value: evt.label,
-              fill: "var(--color-accent)",
-              fontSize: 9,
-              position: "insideTopRight",
-            }}
+            label={{ value: evt.label, fill: "var(--color-accent)", fontSize: 9, position: "insideTopRight" }}
           />
         ))}
+        {/* Ghost line: previous run, dashed grey */}
+        {hasGhost && (
+          <Line
+            type="monotone"
+            dataKey="ghost"
+            stroke="var(--color-muted)"
+            strokeWidth={1.5}
+            strokeDasharray="5 3"
+            dot={false}
+            activeDot={false}
+            connectNulls
+          />
+        )}
+        {/* Benchmark: SPY normalised, thin dotted */}
+        {hasBenchmark && (
+          <Line
+            type="monotone"
+            dataKey="benchmark"
+            stroke="var(--color-secondary)"
+            strokeWidth={1}
+            strokeDasharray="2 4"
+            dot={false}
+            activeDot={false}
+            connectNulls
+          />
+        )}
+        {/* Portfolio — drawn last so it sits on top */}
         <Area
           type="monotone"
           dataKey="totalValue"
@@ -104,7 +164,7 @@ export function PortfolioChart({ history, events = [], height = 240 }: Portfolio
           dot={false}
           activeDot={{ r: 3, fill: "var(--color-accent)", stroke: "var(--color-elevated)" }}
         />
-      </AreaChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSimulation } from "@/hooks/useSimulation";
 import { useSimulationStore } from "@/store/simulationStore";
+import { useLeaderboardStore } from "@/store/leaderboardStore";
 import { PortfolioChart } from "@/components/charts/PortfolioChart";
 import { NarratorPopup } from "@/components/narrator/NarratorPopup";
 import { PlaybackControls } from "@/components/simulation/PlaybackControls";
@@ -15,7 +16,9 @@ export default function SimulatePage() {
   useSimulation(); // drives the playback interval
 
   const state = useSimulationStore((s) => s.state);
+  const priceData = useSimulationStore((s) => s.priceData);
   const play = useSimulationStore((s) => s.play);
+  const lastRunHistories = useLeaderboardStore((s) => s.lastRunHistories);
   const hasAutoStarted = useRef(false);
   const [adDismissed, setAdDismissed] = useState(false);
 
@@ -44,6 +47,25 @@ export default function SimulatePage() {
 
   const history = state?.history ?? [];
   const events = state?.config.scenario.events ?? [];
+  const scenarioSlug = state?.config.scenario.slug;
+
+  // Ghost line: previous run history for same scenario
+  const ghostData = scenarioSlug ? lastRunHistories[scenarioSlug] : undefined;
+
+  // Benchmark: SPY normalised to same starting value as portfolio
+  const benchmarkData = useMemo(() => {
+    if (!state || !priceData) return undefined;
+    const spySeries = priceData.get("SPY");
+    if (!spySeries || spySeries.length === 0) return undefined;
+    const spyStart = spySeries[0]?.close;
+    const startValue = state.portfolio.startingValue || state.portfolio.totalValue;
+    if (!spyStart || !startValue) return undefined;
+    const spyMap = new Map(spySeries.map((p) => [p.date, p.close]));
+    return history.map((snap) => {
+      const spyClose = spyMap.get(snap.date) ?? spyStart;
+      return { date: snap.date, value: (spyClose / spyStart) * startValue };
+    });
+  }, [state, priceData, history]);
 
   return (
     <main className="h-dvh flex flex-col overflow-hidden">
@@ -55,7 +77,13 @@ export default function SimulatePage() {
 
       {/* Chart */}
       <div className="flex-1 min-h-0 flex flex-col justify-center px-2 py-2">
-        <PortfolioChart history={history} events={events} height={220} />
+        <PortfolioChart
+          history={history}
+          events={events}
+          height={220}
+          benchmarkData={benchmarkData}
+          ghostData={ghostData}
+        />
       </div>
 
       {/* Completion banner */}
