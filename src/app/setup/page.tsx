@@ -93,6 +93,131 @@ const BLANK_RULE_FORM: RuleForm = {
   cooldownTicks: 5,
 };
 
+// ─── Rule templates ────────────────────────────────────────────────────────────
+
+type TemplateFieldType = "pct" | "cash" | "ticker";
+
+interface TemplateField {
+  id: string;
+  label: string;
+  type: TemplateFieldType;
+  placeholder?: string;
+  defaultValue?: string;
+  min?: number;
+  max?: number;
+}
+
+interface RuleTemplate {
+  id: string;
+  emoji: string;
+  name: string;
+  description: string;
+  fields: TemplateField[];
+  preview: (v: Record<string, string>) => string;
+  build: (v: Record<string, string>, ruleCount: number) => Omit<Rule, "id">;
+}
+
+const RULE_TEMPLATES: RuleTemplate[] = [
+  {
+    id: "daily-floor",
+    emoji: "🛡️",
+    name: "Daily loss limit",
+    description: "Move everything to cash if the portfolio drops too much in one day",
+    fields: [
+      { id: "pct", label: "Sell if portfolio drops more than (% in one day)", type: "pct", placeholder: "5", defaultValue: "5", min: 0.5, max: 50 },
+    ],
+    preview: (v) => `IF portfolio drops >${v.pct || "?"}% today → move all to cash`,
+    build: (v, _n) => ({
+      label: `Daily loss limit (>${v.pct}%)`,
+      enabled: true,
+      conditions: [{ subject: "portfolio_change_pct" as RuleSubject, operator: "lte" as RuleOperator, value: -(parseFloat(v.pct) || 5) }],
+      action: { type: "move_to_cash" as RuleActionType },
+      firedCount: 0,
+      cooldownTicks: 1,
+    }),
+  },
+  {
+    id: "take-profit",
+    emoji: "💰",
+    name: "Take profit",
+    description: "Sell a position once it's up enough on the day — lock in gains",
+    fields: [
+      { id: "ticker", label: "Position to sell", type: "ticker" },
+      { id: "pct", label: "Sell when daily gain exceeds (%)", type: "pct", placeholder: "10", defaultValue: "10", min: 0.5, max: 200 },
+    ],
+    preview: (v) => `IF ${v.ticker || "ticker"} gains >${v.pct || "?"}% today → sell all`,
+    build: (v, _n) => ({
+      label: `Take profit ${v.ticker} at +${v.pct}%`,
+      enabled: true,
+      conditions: [{ subject: "position_change_pct" as RuleSubject, operator: "gte" as RuleOperator, value: parseFloat(v.pct) || 10, ticker: v.ticker }],
+      action: { type: "sell_all" as RuleActionType, ticker: v.ticker },
+      firedCount: 0,
+      cooldownTicks: 5,
+    }),
+  },
+  {
+    id: "cut-losses",
+    emoji: "✂️",
+    name: "Cut losses",
+    description: "Dump a position if it falls too far in a single day",
+    fields: [
+      { id: "ticker", label: "Position to cut", type: "ticker" },
+      { id: "pct", label: "Sell when daily loss exceeds (%)", type: "pct", placeholder: "7", defaultValue: "7", min: 0.5, max: 50 },
+    ],
+    preview: (v) => `IF ${v.ticker || "ticker"} drops >${v.pct || "?"}% today → sell all`,
+    build: (v, _n) => ({
+      label: `Cut losses ${v.ticker} at -${v.pct}%`,
+      enabled: true,
+      conditions: [{ subject: "position_change_pct" as RuleSubject, operator: "lte" as RuleOperator, value: -(parseFloat(v.pct) || 7), ticker: v.ticker }],
+      action: { type: "sell_all" as RuleActionType, ticker: v.ticker },
+      firedCount: 0,
+      cooldownTicks: 5,
+    }),
+  },
+  {
+    id: "trim-position",
+    emoji: "⚖️",
+    name: "Trim oversized position",
+    description: "Sell a slice of a position when it grows too large in your portfolio",
+    fields: [
+      { id: "ticker", label: "Position to trim", type: "ticker" },
+      { id: "maxWeight", label: "Trim when position exceeds (% of portfolio)", type: "pct", placeholder: "30", defaultValue: "30", min: 1, max: 99 },
+      { id: "sellPct", label: "How much of it to sell (%)", type: "pct", placeholder: "25", defaultValue: "25", min: 1, max: 100 },
+    ],
+    preview: (v) => `IF ${v.ticker || "ticker"} > ${v.maxWeight || "?"}% of portfolio → sell ${v.sellPct || "?"}% of it`,
+    build: (v, _n) => ({
+      label: `Trim ${v.ticker} when >${v.maxWeight}%`,
+      enabled: true,
+      conditions: [{ subject: "position_weight_pct" as RuleSubject, operator: "gte" as RuleOperator, value: parseFloat(v.maxWeight) || 30, ticker: v.ticker }],
+      action: { type: "sell_pct" as RuleActionType, ticker: v.ticker, pct: parseFloat(v.sellPct) || 25 },
+      firedCount: 0,
+      cooldownTicks: 10,
+    }),
+  },
+  {
+    id: "buy-the-dip",
+    emoji: "📉",
+    name: "Buy the dip",
+    description: "Scoop up more of something when the market tanks on the day",
+    fields: [
+      { id: "dropPct", label: "Buy when market drops more than (% in one day)", type: "pct", placeholder: "3", defaultValue: "3", min: 0.5, max: 20 },
+      { id: "ticker", label: "What to buy", type: "ticker" },
+      { id: "amount", label: "Dollar amount to spend", type: "cash", placeholder: "5000", defaultValue: "5000" },
+    ],
+    preview: (v) => `IF market drops >${v.dropPct || "?"}% today → buy $${v.amount || "?"} of ${v.ticker || "ticker"}`,
+    build: (v, _n) => ({
+      label: `Buy ${v.ticker} on -${v.dropPct}% dip`,
+      enabled: true,
+      conditions: [{ subject: "market_change_pct" as RuleSubject, operator: "lte" as RuleOperator, value: -(parseFloat(v.dropPct) || 3) }],
+      action: { type: "buy" as RuleActionType, ticker: v.ticker, amount: parseFloat(v.amount) || 5000 },
+      firedCount: 0,
+      cooldownTicks: 5,
+    }),
+  },
+];
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
 function makeRuleId(): string {
   return `rule-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
@@ -114,6 +239,8 @@ function actionSummary(form: RuleForm): string {
     ? ` ${form.actionPct}%` : "";
   return `${label}${ticker}${amount}${pct}`;
 }
+
+// ─── Step components ───────────────────────────────────────────────────────────
 
 function StepCapital() {
   const startingCapital = usePortfolioStore((s) => s.startingCapital);
@@ -292,7 +419,7 @@ function StepPortfolio() {
                     onClick={() => removeAllocation(alloc.ticker)}
                     className="text-muted hover:text-loss text-sm transition-colors ml-1"
                   >
-                    x
+                    ×
                   </button>
                 </div>
               </div>
@@ -321,12 +448,47 @@ function StepRules({ scenario }: { scenario: Scenario | null }) {
   const addRule = useRulesStore((s) => s.addRule);
   const removeRule = useRulesStore((s) => s.removeRule);
   const toggleRule = useRulesStore((s) => s.toggleRule);
+
+  type SheetStep = "pick" | "form" | "custom";
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetStep, setSheetStep] = useState<SheetStep>("pick");
+  const [selectedTemplate, setSelectedTemplate] = useState<RuleTemplate | null>(null);
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({});
   const [form, setForm] = useState<RuleForm>({ ...BLANK_RULE_FORM, conditions: [{ ...BLANK_CONDITION }] });
 
   const scenarioTickers = INSTRUMENTS
     .filter((i) => scenario ? i.availableScenarios.includes(scenario.slug) : false)
     .map((i) => i.ticker);
+
+  const openSheet = () => {
+    setSheetStep("pick");
+    setSelectedTemplate(null);
+    setTemplateValues({});
+    setForm({ ...BLANK_RULE_FORM, conditions: [{ ...BLANK_CONDITION }] });
+    setSheetOpen(true);
+  };
+
+  const pickTemplate = (tmpl: RuleTemplate) => {
+    const defaults: Record<string, string> = {};
+    tmpl.fields.forEach((f) => { defaults[f.id] = f.defaultValue ?? ""; });
+    setSelectedTemplate(tmpl);
+    setTemplateValues(defaults);
+    setSheetStep("form");
+  };
+
+  const templateCanSave = selectedTemplate !== null &&
+    selectedTemplate.fields.every((f) => {
+      const v = templateValues[f.id] ?? "";
+      if (f.type === "ticker") return v !== "";
+      return v !== "" && !isNaN(parseFloat(v));
+    });
+
+  const saveTemplateRule = () => {
+    if (!selectedTemplate || !templateCanSave) return;
+    const built = selectedTemplate.build(templateValues, rules.length);
+    addRule({ id: makeRuleId(), ...built });
+    setSheetOpen(false);
+  };
 
   const updateCondition = (idx: number, patch: Partial<ConditionForm>) => {
     setForm((f) => ({
@@ -335,7 +497,7 @@ function StepRules({ scenario }: { scenario: Scenario | null }) {
     }));
   };
 
-  const saveRule = () => {
+  const saveCustomRule = () => {
     const conditions = form.conditions.filter((c) => c.value !== "").map((c) => ({
       subject: c.subject,
       operator: c.operator,
@@ -359,8 +521,12 @@ function StepRules({ scenario }: { scenario: Scenario | null }) {
     };
     addRule(rule);
     setSheetOpen(false);
-    setForm({ ...BLANK_RULE_FORM, conditions: [{ ...BLANK_CONDITION }] });
   };
+
+  const sheetTitle =
+    sheetStep === "pick" ? "Add a rule" :
+    sheetStep === "form" && selectedTemplate ? selectedTemplate.name :
+    "Custom rule";
 
   const OPMAP = { gt: ">", lt: "<", gte: ">=", lte: "<=" } as const;
 
@@ -369,9 +535,10 @@ function StepRules({ scenario }: { scenario: Scenario | null }) {
       <div>
         <h2 className="text-xl font-bold text-primary mb-1">Automation rules</h2>
         <p className="text-secondary text-sm">
-          Set up rules that fire automatically. Optional, but highly recommended.
+          Set up rules that fire automatically during the simulation. Optional, but powerful.
         </p>
       </div>
+
       {rules.length === 0 ? (
         <p className="text-muted text-xs text-center py-4">
           No rules yet. Add one to automate your panic-selling.
@@ -380,7 +547,7 @@ function StepRules({ scenario }: { scenario: Scenario | null }) {
         <div className="flex flex-col gap-2">
           {rules.map((rule) => (
             <div key={rule.id} className="bg-elevated rounded-xl px-4 py-3">
-              <div className="flex items-start gap-2 mb-2">
+              <div className="flex items-start gap-2 mb-1.5">
                 <p className="text-primary text-sm font-semibold flex-1">{rule.label}</p>
                 <button
                   onClick={() => toggleRule(rule.id)}
@@ -410,154 +577,265 @@ function StepRules({ scenario }: { scenario: Scenario | null }) {
           ))}
         </div>
       )}
+
       {rules.length < 10 && (
-        <Button variant="secondary" onClick={() => setSheetOpen(true)} className="w-full">
+        <Button variant="secondary" onClick={openSheet} className="w-full">
           + Add Rule
         </Button>
       )}
-      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New Rule">
-        <div className="flex flex-col gap-5 pb-6">
-          <Input
-            label="Rule name (optional)"
-            placeholder={`Rule ${rules.length + 1}`}
-            value={form.label}
-            onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
-          />
-          <div>
-            <p className="text-xs text-secondary font-medium mb-2">Conditions (all must be true)</p>
-            <div className="flex flex-col gap-3">
-              {form.conditions.map((cond, idx) => (
-                <div key={idx} className="bg-surface rounded-xl p-3 flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted text-xs font-mono w-8 shrink-0">
-                      {idx === 0 ? "IF" : "AND"}
-                    </span>
-                    <select
-                      value={cond.subject}
-                      onChange={(e) => updateCondition(idx, { subject: e.target.value as RuleSubject, ticker: "" })}
-                      className="flex-1 bg-elevated border border-border rounded-lg px-2 py-2 text-primary text-xs focus:outline-none focus:border-accent"
-                    >
-                      {(Object.keys(SUBJECT_LABELS) as RuleSubject[]).map((s) => (
-                        <option key={s} value={s}>{SUBJECT_LABELS[s]}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {SUBJECT_NEEDS_TICKER.has(cond.subject) && (
-                    <select
-                      value={cond.ticker}
-                      onChange={(e) => updateCondition(idx, { ticker: e.target.value })}
-                      className="bg-elevated border border-border rounded-lg px-2 py-2 text-primary text-xs focus:outline-none focus:border-accent"
-                    >
-                      <option value="">Select ticker...</option>
-                      {scenarioTickers.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  )}
-                  <div className="flex gap-2">
-                    <select
-                      value={cond.operator}
-                      onChange={(e) => updateCondition(idx, { operator: e.target.value as RuleOperator })}
-                      className="bg-elevated border border-border rounded-lg px-2 py-2 text-primary text-xs focus:outline-none focus:border-accent w-16"
-                    >
-                      <option value="gt">&gt;</option>
-                      <option value="lt">&lt;</option>
-                      <option value="gte">&gt;=</option>
-                      <option value="lte">&lt;=</option>
-                    </select>
+
+      <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} title={sheetTitle}>
+
+        {/* ── Step 1: Template picker ── */}
+        {sheetStep === "pick" && (
+          <div className="flex flex-col gap-2 pb-6">
+            <p className="text-secondary text-xs mb-1">
+              Pick a template to get started fast, or build from scratch.
+            </p>
+            {RULE_TEMPLATES.map((tmpl) => (
+              <button
+                key={tmpl.id}
+                onClick={() => pickTemplate(tmpl)}
+                className="flex items-center gap-4 bg-surface border border-border rounded-xl p-4 text-left hover:border-accent/40 active:scale-[0.99] transition-all"
+              >
+                <span className="text-2xl shrink-0">{tmpl.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-primary font-semibold text-sm">{tmpl.name}</p>
+                  <p className="text-secondary text-xs leading-snug mt-0.5">{tmpl.description}</p>
+                </div>
+                <span className="text-muted text-xl shrink-0">›</span>
+              </button>
+            ))}
+            <button
+              onClick={() => setSheetStep("custom")}
+              className="flex items-center gap-4 bg-surface border border-border rounded-xl p-4 text-left hover:border-accent/40 active:scale-[0.99] transition-all mt-1"
+            >
+              <span className="text-2xl shrink-0">⚙️</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-primary font-semibold text-sm">Custom rule</p>
+                <p className="text-secondary text-xs mt-0.5">Any condition, any action — full control</p>
+              </div>
+              <span className="text-muted text-xl shrink-0">›</span>
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 2: Template form ── */}
+        {sheetStep === "form" && selectedTemplate && (
+          <div className="flex flex-col gap-5 pb-6">
+            <button
+              onClick={() => setSheetStep("pick")}
+              className="text-secondary text-sm text-left hover:text-primary transition-colors"
+            >
+              ← Back
+            </button>
+
+            {/* Live preview */}
+            <div className="bg-surface rounded-xl p-3">
+              <p className="text-muted text-xs font-mono mb-1 uppercase tracking-wider">Rule preview</p>
+              <p className="text-accent text-sm font-mono leading-relaxed">
+                {selectedTemplate.preview(templateValues)}
+              </p>
+            </div>
+
+            {selectedTemplate.fields.map((field) => (
+              <div key={field.id}>
+                <p className="text-secondary text-xs font-medium mb-2">{field.label}</p>
+                {field.type === "ticker" ? (
+                  <select
+                    value={templateValues[field.id] ?? ""}
+                    onChange={(e) => setTemplateValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                    className="w-full bg-elevated border border-border rounded-xl px-4 py-3 text-primary text-sm font-mono focus:outline-none focus:border-accent min-h-[52px]"
+                  >
+                    <option value="">Select ticker…</option>
+                    {scenarioTickers.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                ) : field.type === "cash" ? (
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-secondary text-sm pointer-events-none">$</span>
                     <input
                       type="number"
-                      placeholder="Value"
-                      value={cond.value}
-                      onChange={(e) => updateCondition(idx, { value: e.target.value })}
-                      className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-primary text-xs font-mono focus:outline-none focus:border-accent min-h-[36px]"
+                      placeholder={field.placeholder}
+                      value={templateValues[field.id] ?? ""}
+                      onChange={(e) => setTemplateValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      className="w-full bg-elevated border border-border rounded-xl pl-8 pr-4 py-3 text-primary text-sm font-mono focus:outline-none focus:border-accent min-h-[52px]"
+                      min={field.min}
                     />
-                    {form.conditions.length > 1 && (
-                      <button
-                        onClick={() => setForm((f) => ({ ...f, conditions: f.conditions.filter((_, i) => i !== idx) }))}
-                        className="text-muted hover:text-loss text-xs px-2"
-                      >
-                        remove
-                      </button>
-                    )}
                   </div>
-                </div>
-              ))}
-              {form.conditions.length < 3 && (
-                <button
-                  onClick={() => setForm((f) => ({ ...f, conditions: [...f.conditions, { ...BLANK_CONDITION }] }))}
-                  className="text-secondary text-xs hover:text-primary transition-colors text-left"
-                >
-                  + Add condition
-                </button>
-              )}
-            </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="number"
+                      placeholder={field.placeholder}
+                      value={templateValues[field.id] ?? ""}
+                      onChange={(e) => setTemplateValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      className="w-full bg-elevated border border-border rounded-xl px-4 pr-10 py-3 text-primary text-sm font-mono focus:outline-none focus:border-accent min-h-[52px]"
+                      min={field.min}
+                      max={field.max}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-secondary text-sm pointer-events-none">%</span>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <Button onClick={saveTemplateRule} disabled={!templateCanSave} className="w-full">
+              Add Rule
+            </Button>
           </div>
-          <div>
-            <p className="text-xs text-secondary font-medium mb-2">Then do this</p>
-            <div className="bg-surface rounded-xl p-3 flex flex-col gap-2">
-              <select
-                value={form.actionType}
-                onChange={(e) => setForm((f) => ({ ...f, actionType: e.target.value as RuleActionType, actionTicker: "" }))}
-                className="bg-elevated border border-border rounded-lg px-2 py-2 text-primary text-xs focus:outline-none focus:border-accent"
-              >
-                {(Object.keys(ACTION_LABELS) as RuleActionType[]).map((a) => (
-                  <option key={a} value={a}>{ACTION_LABELS[a]}</option>
-                ))}
-              </select>
-              {ACTION_NEEDS_TICKER.has(form.actionType) && (
-                <select
-                  value={form.actionTicker}
-                  onChange={(e) => setForm((f) => ({ ...f, actionTicker: e.target.value }))}
-                  className="bg-elevated border border-border rounded-lg px-2 py-2 text-primary text-xs focus:outline-none focus:border-accent"
-                >
-                  <option value="">Select ticker...</option>
-                  {scenarioTickers.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              )}
-              {ACTION_NEEDS_AMOUNT.has(form.actionType) && (
-                <Input
-                  type="number"
-                  prefix="$"
-                  placeholder="Dollar amount"
-                  value={form.actionAmount}
-                  onChange={(e) => setForm((f) => ({ ...f, actionAmount: e.target.value }))}
-                />
-              )}
-              {ACTION_NEEDS_PCT.has(form.actionType) && (
-                <Input
-                  type="number"
-                  placeholder="Percentage (0-100)"
-                  value={form.actionPct}
-                  onChange={(e) => setForm((f) => ({ ...f, actionPct: e.target.value }))}
-                  min={0}
-                  max={100}
-                />
-              )}
-            </div>
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-secondary font-medium">Cooldown (days)</p>
-              <p className="text-muted text-xs">Minimum days before rule fires again</p>
-            </div>
-            <input
-              type="number"
-              value={form.cooldownTicks}
-              onChange={(e) => setForm((f) => ({ ...f, cooldownTicks: Math.max(0, parseInt(e.target.value) || 0) }))}
-              className="w-16 bg-elevated border border-border rounded-lg px-2 py-2 text-primary text-xs font-mono text-center focus:outline-none focus:border-accent"
-              min={0}
+        )}
+
+        {/* ── Step 3: Custom rule builder ── */}
+        {sheetStep === "custom" && (
+          <div className="flex flex-col gap-5 pb-6">
+            <button
+              onClick={() => setSheetStep("pick")}
+              className="text-secondary text-sm text-left hover:text-primary transition-colors"
+            >
+              ← Back
+            </button>
+            <Input
+              label="Rule name (optional)"
+              placeholder={`Rule ${rules.length + 1}`}
+              value={form.label}
+              onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))}
             />
-          </div>
-          {form.conditions.some((c) => c.value !== "") && (
-            <div className="bg-surface rounded-xl p-3">
-              <p className="text-muted text-xs mb-1 uppercase tracking-wider">Preview</p>
-              {form.conditions.filter((c) => c.value !== "").map((c, i) => (
-                <p key={i} className="text-secondary text-xs font-mono">{i === 0 ? "IF" : "AND"} {conditionSummary(c)}</p>
-              ))}
-              <p className="text-accent text-xs font-mono mt-0.5">THEN {actionSummary(form)}</p>
+            <div>
+              <p className="text-xs text-secondary font-medium mb-2">Conditions (all must be true)</p>
+              <div className="flex flex-col gap-3">
+                {form.conditions.map((cond, idx) => (
+                  <div key={idx} className="bg-surface rounded-xl p-3 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted text-xs font-mono w-8 shrink-0">
+                        {idx === 0 ? "IF" : "AND"}
+                      </span>
+                      <select
+                        value={cond.subject}
+                        onChange={(e) => updateCondition(idx, { subject: e.target.value as RuleSubject, ticker: "" })}
+                        className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2.5 text-primary text-xs focus:outline-none focus:border-accent min-h-[44px]"
+                      >
+                        {(Object.keys(SUBJECT_LABELS) as RuleSubject[]).map((s) => (
+                          <option key={s} value={s}>{SUBJECT_LABELS[s]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {SUBJECT_NEEDS_TICKER.has(cond.subject) && (
+                      <select
+                        value={cond.ticker}
+                        onChange={(e) => updateCondition(idx, { ticker: e.target.value })}
+                        className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-primary text-xs focus:outline-none focus:border-accent min-h-[44px]"
+                      >
+                        <option value="">Select ticker…</option>
+                        {scenarioTickers.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    )}
+                    <div className="flex gap-2">
+                      <select
+                        value={cond.operator}
+                        onChange={(e) => updateCondition(idx, { operator: e.target.value as RuleOperator })}
+                        className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-primary text-xs focus:outline-none focus:border-accent w-20 min-h-[44px]"
+                      >
+                        <option value="gt">&gt;</option>
+                        <option value="lt">&lt;</option>
+                        <option value="gte">&gt;=</option>
+                        <option value="lte">&lt;=</option>
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Value"
+                        value={cond.value}
+                        onChange={(e) => updateCondition(idx, { value: e.target.value })}
+                        className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2.5 text-primary text-xs font-mono focus:outline-none focus:border-accent min-h-[44px]"
+                      />
+                      {form.conditions.length > 1 && (
+                        <button
+                          onClick={() => setForm((f) => ({ ...f, conditions: f.conditions.filter((_, i) => i !== idx) }))}
+                          className="text-muted hover:text-loss text-sm px-2 min-h-[44px]"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {form.conditions.length < 3 && (
+                  <button
+                    onClick={() => setForm((f) => ({ ...f, conditions: [...f.conditions, { ...BLANK_CONDITION }] }))}
+                    className="text-secondary text-xs hover:text-primary transition-colors text-left py-1"
+                  >
+                    + Add condition
+                  </button>
+                )}
+              </div>
             </div>
-          )}
-          <Button onClick={saveRule} className="w-full">Save Rule</Button>
-        </div>
+            <div>
+              <p className="text-xs text-secondary font-medium mb-2">Then do this</p>
+              <div className="bg-surface rounded-xl p-3 flex flex-col gap-2">
+                <select
+                  value={form.actionType}
+                  onChange={(e) => setForm((f) => ({ ...f, actionType: e.target.value as RuleActionType, actionTicker: "" }))}
+                  className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-primary text-xs focus:outline-none focus:border-accent min-h-[44px]"
+                >
+                  {(Object.keys(ACTION_LABELS) as RuleActionType[]).map((a) => (
+                    <option key={a} value={a}>{ACTION_LABELS[a]}</option>
+                  ))}
+                </select>
+                {ACTION_NEEDS_TICKER.has(form.actionType) && (
+                  <select
+                    value={form.actionTicker}
+                    onChange={(e) => setForm((f) => ({ ...f, actionTicker: e.target.value }))}
+                    className="bg-elevated border border-border rounded-lg px-3 py-2.5 text-primary text-xs focus:outline-none focus:border-accent min-h-[44px]"
+                  >
+                    <option value="">Select ticker…</option>
+                    {scenarioTickers.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                )}
+                {ACTION_NEEDS_AMOUNT.has(form.actionType) && (
+                  <Input
+                    type="number"
+                    prefix="$"
+                    placeholder="Dollar amount"
+                    value={form.actionAmount}
+                    onChange={(e) => setForm((f) => ({ ...f, actionAmount: e.target.value }))}
+                  />
+                )}
+                {ACTION_NEEDS_PCT.has(form.actionType) && (
+                  <Input
+                    type="number"
+                    placeholder="Percentage (0-100)"
+                    value={form.actionPct}
+                    onChange={(e) => setForm((f) => ({ ...f, actionPct: e.target.value }))}
+                    min={0}
+                    max={100}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-secondary font-medium">Cooldown (days)</p>
+                <p className="text-muted text-xs">Min days before rule fires again</p>
+              </div>
+              <input
+                type="number"
+                value={form.cooldownTicks}
+                onChange={(e) => setForm((f) => ({ ...f, cooldownTicks: Math.max(0, parseInt(e.target.value) || 0) }))}
+                className="w-16 bg-elevated border border-border rounded-lg px-2 py-2.5 text-primary text-xs font-mono text-center focus:outline-none focus:border-accent min-h-[44px]"
+                min={0}
+              />
+            </div>
+            {form.conditions.some((c) => c.value !== "") && (
+              <div className="bg-surface rounded-xl p-3">
+                <p className="text-muted text-xs mb-1 uppercase tracking-wider">Preview</p>
+                {form.conditions.filter((c) => c.value !== "").map((c, i) => (
+                  <p key={i} className="text-secondary text-xs font-mono">{i === 0 ? "IF" : "AND"} {conditionSummary(c)}</p>
+                ))}
+                <p className="text-accent text-xs font-mono mt-0.5">THEN {actionSummary(form)}</p>
+              </div>
+            )}
+            <Button onClick={saveCustomRule} className="w-full">Save Rule</Button>
+          </div>
+        )}
       </Sheet>
     </div>
   );
