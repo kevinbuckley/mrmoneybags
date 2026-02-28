@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useLeaderboardStore } from "@/store/leaderboardStore";
 import { formatCurrency } from "@/lib/format";
@@ -19,8 +20,18 @@ const SCENARIO_SLUG_COLORS: Record<string, string> = {
 export default function LeaderboardPage() {
   const entries = useLeaderboardStore((s) => s.entries);
   const clearEntries = useLeaderboardStore((s) => s.clearEntries);
+  const [activeScenario, setActiveScenario] = useState<string>("all");
 
-  const sorted = [...entries].sort((a, b) => b.returnPct - a.returnPct);
+  // Unique scenarios that have at least one entry, in insertion order
+  const scenarioSlugs = Array.from(
+    new Map(entries.map((e) => [e.scenarioSlug, e.scenarioName])).entries()
+  );
+
+  const filtered = activeScenario === "all"
+    ? entries
+    : entries.filter((e) => e.scenarioSlug === activeScenario);
+
+  const sorted = [...filtered].sort((a, b) => b.returnPct - a.returnPct);
 
   return (
     <main className="min-h-screen px-4 py-6 max-w-lg mx-auto pb-12">
@@ -38,6 +49,38 @@ export default function LeaderboardPage() {
           </button>
         )}
       </div>
+
+      {/* Scenario filter tabs */}
+      {entries.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-none">
+          <button
+            onClick={() => setActiveScenario("all")}
+            className={`shrink-0 text-xs font-mono font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+              activeScenario === "all"
+                ? "bg-accent/10 text-accent border-accent/30"
+                : "bg-elevated text-secondary border-border hover:border-secondary"
+            }`}
+          >
+            All ({entries.length})
+          </button>
+          {scenarioSlugs.map(([slug, name]) => {
+            const count = entries.filter((e) => e.scenarioSlug === slug).length;
+            return (
+              <button
+                key={slug}
+                onClick={() => setActiveScenario(slug)}
+                className={`shrink-0 text-xs font-mono font-semibold px-3 py-1.5 rounded-full border transition-colors ${
+                  activeScenario === slug
+                    ? "bg-accent/10 text-accent border-accent/30"
+                    : `${SCENARIO_SLUG_COLORS[slug] ?? "text-secondary bg-border"} border-transparent hover:opacity-80`
+                }`}
+              >
+                {name.split(" ").slice(0, 2).join(" ")} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {sorted.length === 0 ? (
         <div className="flex flex-col items-center justify-center text-center py-16 gap-4">
