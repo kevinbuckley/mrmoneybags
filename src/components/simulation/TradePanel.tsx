@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSimulationStore } from "@/store/simulationStore";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
@@ -31,6 +31,11 @@ export function TradePanel({ open, onClose, defaultTicker }: TradePanelProps) {
   const [ticker, setTicker] = useState(defaultTicker ?? "");
   const [amount, setAmount] = useState("");
   const [sellPct, setSellPct] = useState("100");
+
+  // Sync ticker when panel opens with a different defaultTicker
+  useEffect(() => {
+    if (open) setTicker(defaultTicker ?? "");
+  }, [open, defaultTicker]);
 
   const portfolio = state?.portfolio;
   const positions = portfolio?.positions ?? [];

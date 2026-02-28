@@ -8,6 +8,7 @@ import { PortfolioChart } from "@/components/charts/PortfolioChart";
 import { NarratorPopup } from "@/components/narrator/NarratorPopup";
 import { PlaybackControls } from "@/components/simulation/PlaybackControls";
 import { PortfolioPanel } from "@/components/simulation/PortfolioPanel";
+import { AdBanner } from "@/components/ads/AdBanner";
 
 export default function SimulatePage() {
   const router = useRouter();
@@ -35,6 +36,9 @@ export default function SimulatePage() {
 
   return (
     <main className="h-dvh flex flex-col overflow-hidden">
+      {/* Ad banner */}
+      <AdBanner slot="simulate-top" className="px-2 pt-2" />
+
       {/* Portfolio header */}
       <PortfolioPanel />
 
