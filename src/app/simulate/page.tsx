@@ -47,7 +47,7 @@ export default function SimulatePage() {
   return (
     <main className="h-dvh flex flex-col overflow-hidden">
       {/* Ad banner */}
-      <AdBanner slot="simulate-top" className="px-2 pt-2" />
+      <AdBanner className="px-2 pt-2" />
 
       {/* Portfolio header */}
       <PortfolioPanel />

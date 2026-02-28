@@ -128,7 +128,7 @@ export default function ResultsPage() {
 
       {/* Ad card */}
       <div className="mb-6">
-        <AdCard slot="results-mid" />
+        <AdCard />
       </div>
 
       {/* Share card */}

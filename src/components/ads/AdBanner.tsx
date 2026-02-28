@@ -1,30 +1,43 @@
 "use client";
 
-// AdBanner — renders a Google AdSense banner slot
-// Falls back gracefully if no ad loads (no empty white boxes)
-// TODO: Replace placeholder slot IDs with real ones before launch (see TD-006)
+import { useEffect } from "react";
+
+const PUB_ID = "ca-pub-2954508563135581";
+const SLOT_ID = "REPLACE_WITH_SLOT_ID"; // paste simulate-banner slot ID here
 
 interface AdBannerProps {
-  slot?: string;
   className?: string;
 }
 
-export function AdBanner({ slot = "PLACEHOLDER", className = "" }: AdBannerProps) {
-  // In development / no AdSense, render a minimal labeled placeholder
-  const isDev = process.env.NODE_ENV === "development";
+export function AdBanner({ className = "" }: AdBannerProps) {
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
+    } catch {
+      // ad blocked or not loaded
+    }
+  }, []);
 
-  if (isDev) {
+  if (process.env.NODE_ENV === "development") {
     return (
       <div className={`w-full min-h-[60px] border border-dashed border-border rounded-lg flex items-center justify-center ${className}`}>
-        <span className="text-xs text-muted">Ad slot ({slot})</span>
+        <span className="text-xs text-muted">Ad banner</span>
       </div>
     );
   }
 
   return (
-    <div className={`w-full min-h-[60px] ${className}`}>
+    <div className={`w-full overflow-hidden ${className}`}>
       <p className="text-xs text-muted text-center mb-1">Advertisement</p>
-      {/* AdSense ins tag goes here — populated after launch */}
+      <ins
+        className="adsbygoogle"
+        style={{ display: "block" }}
+        data-ad-client={PUB_ID}
+        data-ad-slot={SLOT_ID}
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      />
     </div>
   );
 }
