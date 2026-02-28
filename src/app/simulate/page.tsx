@@ -1,43 +1,62 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSimulation } from "@/hooks/useSimulation";
+import { useSimulationStore } from "@/store/simulationStore";
+import { PortfolioChart } from "@/components/charts/PortfolioChart";
+import { NarratorPopup } from "@/components/narrator/NarratorPopup";
+import { PlaybackControls } from "@/components/simulation/PlaybackControls";
+import { PortfolioPanel } from "@/components/simulation/PortfolioPanel";
 
 export default function SimulatePage() {
+  const router = useRouter();
+  useSimulation(); // drives the playback interval
+
+  const state = useSimulationStore((s) => s.state);
+
+  // Redirect to results 1s after simulation completes
+  useEffect(() => {
+    if (state?.isComplete) {
+      const t = setTimeout(() => router.push("/results"), 1500);
+      return () => clearTimeout(t);
+    }
+  }, [state?.isComplete, router]);
+
+  // Guard: redirect to setup if no state (direct navigation or page refresh)
+  useEffect(() => {
+    if (state === null) {
+      router.push("/setup");
+    }
+  }, [state, router]);
+
+  const history = state?.history ?? [];
+  const events = state?.config.scenario.events ?? [];
+
   return (
-    <main className="min-h-screen flex flex-col">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-border flex items-center justify-between">
-        <div>
-          <p className="text-xs text-secondary">Portfolio Value</p>
-          <p className="text-2xl font-bold font-mono text-primary">$10,000</p>
-          <p className="text-xs text-secondary font-mono">+$0 (0.0%) today</p>
-        </div>
-        <Link href="/results" className="text-xs text-accent">Skip to Results →</Link>
+    <main className="h-dvh flex flex-col overflow-hidden">
+      {/* Portfolio header */}
+      <PortfolioPanel />
+
+      {/* Chart */}
+      <div className="flex-1 min-h-0 flex flex-col justify-center px-2 py-2">
+        <PortfolioChart history={history} events={events} height={220} />
       </div>
 
-      {/* Chart placeholder */}
-      <div className="flex-1 flex items-center justify-center bg-base">
-        <p className="text-secondary text-sm">Simulation chart — coming in Phase 3</p>
-      </div>
-
-      {/* Chyron */}
-      <div className="h-8 bg-surface border-t border-border flex items-center overflow-hidden">
-        <div className="text-xs text-secondary font-mono px-4 whitespace-nowrap">
-          BREAKING: Local investor down bad, blames market • Portfolio diversification: for people who want to lose money slowly •
+      {/* Completion banner */}
+      {state?.isComplete && (
+        <div className="bg-accent/10 border-t border-accent/30 px-4 py-2 text-center">
+          <p className="text-accent text-sm font-semibold">
+            Simulation complete — heading to results...
+          </p>
         </div>
-      </div>
+      )}
 
       {/* Playback controls */}
-      <div className="h-14 bg-surface border-t border-border flex items-center justify-center gap-6 px-4 pb-safe">
-        <button className="text-secondary text-xl min-w-[44px] min-h-[44px] flex items-center justify-center">⏮</button>
-        <button className="text-primary text-2xl min-w-[44px] min-h-[44px] flex items-center justify-center">▶</button>
-        <button className="text-secondary text-xl min-w-[44px] min-h-[44px] flex items-center justify-center">⏭</button>
-        <div className="flex gap-1 ml-2">
-          {["1x", "5x", "10x"].map((s) => (
-            <button key={s} className="text-xs text-secondary px-2 py-1 rounded border border-border min-h-[32px]">{s}</button>
-          ))}
-        </div>
-      </div>
+      <PlaybackControls />
+
+      {/* Narrator popups (fixed top-right, non-blocking) */}
+      <NarratorPopup />
     </main>
   );
 }
