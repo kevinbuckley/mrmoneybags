@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint src --max-warnings=0",
     "type-check": "tsc --noEmit",
-    "test": "pnpm type-check && pnpm lint"
+    "test": "vitest run && pnpm type-check && pnpm lint"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
@@ -33,6 +33,7 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "typescript-eslint": "^8.56.1",
+    "vitest": "^4.0.18",
     "yahoo-finance2": "^3.13.1"
   }
 }

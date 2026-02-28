@@ -949,18 +949,61 @@ function StepReview({ launching }: { launching: boolean }) {
           </div>
         )}
       </div>
-      {/* Warn when buy rules exist but portfolio is 100% invested — no cash to spend */}
+      {/* ── Warnings ─────────────────────────────────────────────────────── */}
+
+      {/* 1. Buy rules with no cash reserve */}
       {rules.some((r) => r.enabled && r.action.type === "buy") && totalPct >= 99 && (
         <div className="bg-loss/10 border border-loss/30 rounded-xl p-3 flex gap-2 items-start">
           <span className="text-loss text-base shrink-0">⚠️</span>
           <div>
             <p className="text-loss text-xs font-semibold">No cash reserve for buy rules</p>
             <p className="text-secondary text-xs mt-0.5">
-              You&apos;re 100% invested — your buy rules will fire but have nothing to spend. Go back and allocate less than 100% to leave cash on the sideline.
+              You&apos;re 100% invested — your buy rules will fire but have nothing to spend.
+              Go back and allocate less than 100% to leave cash on the sideline.
             </p>
           </div>
         </div>
       )}
+
+      {/* 2. Sell rules targeting a ticker not in the starting portfolio */}
+      {rules
+        .filter(
+          (r) =>
+            r.enabled &&
+            (r.action.type === "sell_pct" || r.action.type === "sell_all") &&
+            r.action.ticker &&
+            !allocations.some((a) => a.ticker === r.action.ticker)
+        )
+        .map((r) => (
+          <div key={r.id} className="bg-loss/10 border border-loss/30 rounded-xl p-3 flex gap-2 items-start">
+            <span className="text-loss text-base shrink-0">⚠️</span>
+            <div>
+              <p className="text-loss text-xs font-semibold">
+                &ldquo;{r.label}&rdquo; targets {r.action.ticker} — not in your portfolio
+              </p>
+              <p className="text-secondary text-xs mt-0.5">
+                This rule will silently do nothing because you don&apos;t hold {r.action.ticker}.
+                Either add {r.action.ticker} to your portfolio or update the rule.
+              </p>
+            </div>
+          </div>
+        ))}
+
+      {/* 3. Buy rules and move_to_cash rules both active — they conflict */}
+      {rules.some((r) => r.enabled && r.action.type === "buy") &&
+        rules.some((r) => r.enabled && r.action.type === "move_to_cash") && (
+          <div className="bg-loss/10 border border-loss/30 rounded-xl p-3 flex gap-2 items-start">
+            <span className="text-loss text-base shrink-0">⚠️</span>
+            <div>
+              <p className="text-loss text-xs font-semibold">Conflicting rules: buy + move to cash</p>
+              <p className="text-secondary text-xs mt-0.5">
+                On a big down day both rules can fire at the same time — buy executes first, then
+                move-to-cash unwinds it immediately. Consider adding different thresholds or
+                disabling one.
+              </p>
+            </div>
+          </div>
+        )}
     </div>
   );
 }
