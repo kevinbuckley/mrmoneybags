@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* ─── MoneyBags Design Tokens ─────────────────────────────────────── */
+@theme inline {
+  /* Backgrounds */
+  --color-base: #0a0a0f;
+  --color-surface: #13131a;
+  --color-elevated: #1a1a24;
+  --color-border: #1e1e2e;
+
+  /* Text */
+  --color-primary: #f0f0f5;
+  --color-secondary: #8888aa;
+  --color-muted: #55556a;
+
+  /* Semantic: Financial */
+  --color-gain: #00d084;
+  --color-loss: #ff4757;
+  --color-neutral: #8888aa;
+
+  /* Brand */
+  --color-accent: #7c6aff;
+
+  /* Fonts */
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+/* ─── Base Styles ──────────────────────────────────────────────────── */
+html,
+body {
+  background-color: #0a0a0f;
+  color: #f0f0f5;
+  min-height: 100dvh;
+}
+
+/* iOS safe area support */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Chyron marquee animation */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+/* Remove default tap highlight on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
