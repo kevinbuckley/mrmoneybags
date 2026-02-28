@@ -10,10 +10,13 @@ import { useRulesStore } from "@/store/rulesStore";
 import { useLeaderboardStore } from "@/store/leaderboardStore";
 import { PortfolioChart } from "@/components/charts/PortfolioChart";
 import { AnalyticsGrid } from "@/components/results/AnalyticsGrid";
+import { CounterfactualPanel } from "@/components/results/CounterfactualPanel";
+import { CorrelationHeatmap } from "@/components/results/CorrelationHeatmap";
 import { ShareCard } from "@/components/results/ShareCard";
 import { Spinner } from "@/components/ui/Spinner";
 import { loadPriceDataMap } from "@/data/loaders";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { playSound } from "@/lib/sound";
 
 const GRADE_COLOR: Record<string, string> = {
   "A+": "text-gain",
@@ -67,6 +70,17 @@ export default function ResultsPage() {
     });
   }, [state, priceData]);
 
+  // SPY return % for counterfactual panel
+  const spyReturnPct = useMemo(() => {
+    if (!priceData) return null;
+    const spySeries = priceData.get("SPY");
+    if (!spySeries || spySeries.length < 2) return null;
+    const first = spySeries[0]?.close;
+    const last = spySeries[spySeries.length - 1]?.close;
+    if (!first || !last || first === 0) return null;
+    return (last - first) / first;
+  }, [priceData]);
+
   // Add to leaderboard, update streak + personal best — once per result
   useEffect(() => {
     if (!analytics || !state || addedRef.current) return;
@@ -87,6 +101,9 @@ export default function ResultsPage() {
     updateScenarioPersonalBest(state.config.scenario.slug, analytics.totalReturnPct);
     updateStreak();
     setLastRunHistory(state.config.scenario.slug, state.history);
+
+    // Sound: play completion fanfare or loss sound
+    playSound(analytics.totalReturnPct >= 0 ? "complete" : "loss_day");
 
     // Confetti for big wins
     if (analytics.totalReturnPct >= 0.2) {
@@ -311,6 +328,24 @@ export default function ResultsPage() {
             Analytics require a completed simulation with sufficient history.
           </p>
         </div>
+      )}
+
+      {/* Counterfactual: what-if comparison */}
+      {analytics && (
+        <CounterfactualPanel
+          startingCapital={startingValue}
+          yourReturnPct={analytics.totalReturnPct}
+          hodlReturnPct={analytics.hodlReturnPct}
+          spyReturnPct={spyReturnPct}
+        />
+      )}
+
+      {/* Correlation heatmap (multi-asset only) */}
+      {priceData && state && (
+        <CorrelationHeatmap
+          tickers={state.config.allocations.map((a) => a.ticker)}
+          priceData={priceData}
+        />
       )}
 
       {/* Share card */}

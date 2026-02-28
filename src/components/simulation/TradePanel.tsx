@@ -6,6 +6,7 @@ import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { formatCurrency } from "@/lib/format";
+import { playSound } from "@/lib/sound";
 import type { TradeOrder } from "@/types/portfolio";
 
 interface TradePanelProps {
@@ -56,6 +57,7 @@ export function TradePanel({ open, onClose, defaultTicker }: TradePanelProps) {
     };
 
     submitTrade(order);
+    playSound("trade");
     onClose();
     setAmount("");
     setSellPct("100");
