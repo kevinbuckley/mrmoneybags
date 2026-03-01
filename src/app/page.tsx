@@ -74,16 +74,52 @@ export default function LandingPage() {
         </Link>
       </div>
 
+      {/* Daily Challenge */}
+      <div className="px-4 pb-8 max-w-3xl mx-auto w-full">
+        <p className="text-muted text-xs font-mono text-center mb-4 uppercase tracking-widest">
+          🎯 Today&apos;s Challenge
+        </p>
+        {(() => {
+          const daily = SCENARIOS[dailyIdx];
+          return (
+            <Link
+              href={`/setup?s=${daily.slug}`}
+              className="block rounded-2xl border border-accent/50 bg-accent/5 ring-1 ring-accent/30 p-6 transition-all hover:bg-accent/10 hover:scale-[1.01] active:scale-[0.99]"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-3 flex-wrap">
+                    <span className="text-2xl">{SCENARIO_EMOJI[daily.slug] ?? "⚪"}</span>
+                    <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${SCENARIO_BADGE[daily.color]}`}>
+                      {daily.startDate.slice(0, 4)}–{daily.endDate.slice(0, 4)}
+                    </span>
+                    <span className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-full ${DIFFICULTY_BADGE[daily.difficulty]}`}>
+                      {daily.difficulty}
+                    </span>
+                  </div>
+                  <h2 className="text-primary font-bold text-xl mb-1">{daily.name}</h2>
+                  <p className="text-secondary text-sm italic mb-4">{daily.snarkDescription}</p>
+                  <span className="inline-flex items-center gap-1.5 bg-accent text-white font-semibold rounded-lg px-4 py-2 text-sm">
+                    Play Today&apos;s Challenge →
+                  </span>
+                </div>
+                <PersonalBestBadge scenarioSlug={daily.slug} />
+              </div>
+            </Link>
+          );
+        })()}
+      </div>
+
       {/* Scenario Cards */}
       <div className="px-4 pb-16 max-w-3xl mx-auto w-full">
         <p className="text-muted text-xs font-mono text-center mb-6 uppercase tracking-widest">
-          Pick your poison
+          All Scenarios
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {SCENARIOS.map((scenario) => (
             <Link
               key={scenario.slug}
-              href="/setup"
+              href={`/setup?s=${scenario.slug}`}
               className={`rounded-xl border p-4 transition-all hover:scale-[1.01] active:scale-[0.99] ${SCENARIO_COLOR[scenario.color]} ${scenario.slug === dailySlug ? "ring-1 ring-accent/40" : ""}`}
             >
               <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -107,7 +143,6 @@ export default function LandingPage() {
                   <h3 className="text-primary font-semibold text-sm mb-0.5">{scenario.name}</h3>
                   <p className="text-secondary text-xs italic">{scenario.snarkDescription}</p>
                 </div>
-                {/* Client component: shows personal best if the user has played this scenario */}
                 <PersonalBestBadge scenarioSlug={scenario.slug} />
               </div>
             </Link>
