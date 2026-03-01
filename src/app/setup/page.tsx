@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SCENARIOS } from "@/data/scenarios";
@@ -9,6 +9,7 @@ import { loadPriceDataMap } from "@/data/loaders";
 import { usePortfolioStore } from "@/store/portfolioStore";
 import { useRulesStore } from "@/store/rulesStore";
 import { useSimulationStore } from "@/store/simulationStore";
+import { blackScholes, historicalVolatility } from "@/lib/blackScholes";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -19,6 +20,27 @@ import type { Scenario } from "@/types/scenario";
 import type { Rule, RuleSubject, RuleOperator, RuleActionType } from "@/types/rules";
 
 const STEPS = ["Capital", "Scenario", "Portfolio", "Rules", "Review"];
+
+// ─── Pre-sim option order (sell put before sim starts) ─────────────────────────
+interface PreSimPut {
+  id: string;
+  ticker: string;
+  strikeIdx: number;   // 0=ATM, 1=−5%, 2=−10%
+  expiryIdx: number;   // 0=~2wk, 1=~1mo, 2=~2mo
+  numContracts: number;
+}
+
+const PRESIM_STRIKES = [
+  { label: "ATM", pct: 0 },
+  { label: "−5% OTM", pct: -0.05 },
+  { label: "−10% OTM", pct: -0.10 },
+] as const;
+
+const PRESIM_EXPIRY = [
+  { label: "~2 wk", bars: 10 },
+  { label: "~1 mo", bars: 21 },
+  { label: "~2 mo", bars: 42 },
+] as const;
 
 const SUBJECT_LABELS: Record<RuleSubject, string> = {
   position_change_pct: "Position Change %",
@@ -946,12 +968,43 @@ function StepRules({ scenario }: { scenario: Scenario | null }) {
   );
 }
 
-function StepReview({ launching }: { launching: boolean }) {
+function StepReview({
+  launching,
+  preSimPuts,
+  onAddPut,
+  onRemovePut,
+}: {
+  launching: boolean;
+  preSimPuts: PreSimPut[];
+  onAddPut: (p: Omit<PreSimPut, "id">) => void;
+  onRemovePut: (id: string) => void;
+}) {
   const startingCapital = usePortfolioStore((s) => s.startingCapital);
   const scenario = usePortfolioStore((s) => s.scenario);
   const allocations = usePortfolioStore((s) => s.allocations);
   const rules = useRulesStore((s) => s.rules);
   const totalPct = allocations.reduce((s, a) => s + a.pct, 0);
+
+  // Pre-sim put form local state
+  const [addingPut, setAddingPut] = useState(false);
+  const scenarioSlug = scenario?.dataSlug ?? scenario?.slug ?? "";
+  const putTickers = useMemo(
+    () => INSTRUMENTS.filter((i) => i.availableScenarios.includes(scenarioSlug) && i.type !== "option").map((i) => i.ticker),
+    [scenarioSlug]
+  );
+  const [putTicker, setPutTicker] = useState(() => putTickers[0] ?? "SPY");
+  const [putStrikeIdx, setPutStrikeIdx] = useState(1);  // default −5% OTM
+  const [putExpiryIdx, setPutExpiryIdx] = useState(1);  // default ~1 mo
+  const [putContracts, setPutContracts] = useState(1);
+
+  function commitPut() {
+    onAddPut({ ticker: putTicker, strikeIdx: putStrikeIdx, expiryIdx: putExpiryIdx, numContracts: putContracts });
+    setAddingPut(false);
+    // reset
+    setPutStrikeIdx(1);
+    setPutExpiryIdx(1);
+    setPutContracts(1);
+  }
 
   if (launching) {
     return (
@@ -1079,6 +1132,130 @@ function StepReview({ launching }: { launching: boolean }) {
             </div>
           </div>
         )}
+
+      {/* ── Pre-Sim Puts ─────────────────────────────────────────────────── */}
+      <div className="bg-elevated rounded-xl p-4">
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-muted text-xs uppercase tracking-wider font-mono">Pre-Sim Puts ({preSimPuts.length})</p>
+          {preSimPuts.length < 5 && !addingPut && (
+            <button
+              onClick={() => { setPutTicker(putTickers[0] ?? "SPY"); setAddingPut(true); }}
+              className="text-xs text-accent hover:text-accent/70 transition-colors"
+            >
+              + Add
+            </button>
+          )}
+        </div>
+        <p className="text-secondary text-xs mb-3">
+          Sell cash-secured puts at Day 1 prices. Premium credited immediately; collateral reserved.
+        </p>
+
+        {/* Queued puts list */}
+        {preSimPuts.length > 0 && (
+          <div className="flex flex-col gap-1.5 mb-3">
+            {preSimPuts.map((pp) => (
+              <div key={pp.id} className="flex items-center justify-between">
+                <span className="text-accent font-mono font-bold text-sm">{pp.ticker}</span>
+                <span className="text-secondary text-xs font-mono">
+                  {PRESIM_STRIKES[pp.strikeIdx]?.label} · {PRESIM_EXPIRY[pp.expiryIdx]?.label} · ×{pp.numContracts}
+                </span>
+                <button onClick={() => onRemovePut(pp.id)} className="text-muted hover:text-loss text-xs ml-2">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {preSimPuts.length === 0 && !addingPut && (
+          <p className="text-muted text-xs">None — use the button above to queue a put.</p>
+        )}
+
+        {/* Inline add form */}
+        {addingPut && (
+          <div className="flex flex-col gap-3 pt-1 border-t border-border">
+            {/* Ticker */}
+            <div>
+              <p className="text-xs text-secondary mb-1.5">Underlying</p>
+              <div className="flex flex-wrap gap-1.5">
+                {putTickers.slice(0, 8).map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setPutTicker(t)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition-colors ${
+                      putTicker === t
+                        ? "bg-accent/20 border-accent text-accent"
+                        : "bg-surface border-border text-secondary hover:border-secondary"
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Strike */}
+            <div>
+              <p className="text-xs text-secondary mb-1.5">Strike</p>
+              <div className="flex gap-2">
+                {PRESIM_STRIKES.map((s, i) => (
+                  <button
+                    key={s.label}
+                    onClick={() => setPutStrikeIdx(i)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-mono border transition-colors ${
+                      putStrikeIdx === i
+                        ? "bg-accent/20 border-accent text-accent"
+                        : "bg-surface border-border text-secondary hover:border-secondary"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Expiry */}
+            <div>
+              <p className="text-xs text-secondary mb-1.5">Expiry</p>
+              <div className="flex gap-2">
+                {PRESIM_EXPIRY.map((e, i) => (
+                  <button
+                    key={e.label}
+                    onClick={() => setPutExpiryIdx(i)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-mono border transition-colors ${
+                      putExpiryIdx === i
+                        ? "bg-accent/20 border-accent text-accent"
+                        : "bg-surface border-border text-secondary hover:border-secondary"
+                    }`}
+                  >
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Contracts */}
+            <div>
+              <p className="text-xs text-secondary mb-1.5">Contracts</p>
+              <div className="flex gap-2">
+                {[1, 2, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setPutContracts(n)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-mono border transition-colors ${
+                      putContracts === n
+                        ? "bg-accent/20 border-accent text-accent"
+                        : "bg-surface border-border text-secondary hover:border-secondary"
+                    }`}
+                  >
+                    ×{n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-muted text-xs">Premium computed at sim start using Day 1 close + historical vol.</p>
+            <div className="flex gap-2">
+              <Button onClick={commitPut} className="flex-1">Queue Put</Button>
+              <Button variant="secondary" onClick={() => setAddingPut(false)} className="flex-1">Cancel</Button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1112,6 +1289,12 @@ export default function SetupPage() {
   const [step, setStep] = useState(0);
   const [launching, setLaunching] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(LOADING_MESSAGES[0]);
+  const [preSimPuts, setPreSimPuts] = useState<PreSimPut[]>([]);
+
+  const addPreSimPut = (p: Omit<PreSimPut, "id">) =>
+    setPreSimPuts((prev) => [...prev, { ...p, id: `pp-${Date.now()}` }]);
+  const removePreSimPut = (id: string) =>
+    setPreSimPuts((prev) => prev.filter((p) => p.id !== id));
 
   const scenario = usePortfolioStore((s) => s.scenario);
   const setScenario = usePortfolioStore((s) => s.setScenario);
@@ -1165,6 +1348,45 @@ export default function SetupPage() {
           source: "manual",
         });
       });
+
+      // Submit pre-configured puts using Day 1 prices
+      for (const pp of preSimPuts) {
+        const series = priceData.get(pp.ticker);
+        if (!series || series.length === 0) continue;
+        const firstClose = series[0].close;
+        const strikeOffset = PRESIM_STRIKES[pp.strikeIdx]?.pct ?? 0;
+        const strike = Math.round(firstClose * (1 + strikeOffset));
+        const expiryBars = PRESIM_EXPIRY[pp.expiryIdx]?.bars ?? 21;
+        const expiryDate =
+          series[Math.min(expiryBars, series.length - 1)]?.date ?? series[series.length - 1].date;
+        const dte = Math.max(
+          1,
+          Math.round(
+            (new Date(expiryDate).getTime() - new Date(series[0].date).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        );
+        const closes = series.slice(0, Math.min(30, series.length)).map((p) => p.close);
+        const sigma = historicalVolatility(closes);
+        const bs = blackScholes({
+          S: firstClose,
+          K: strike,
+          T: dte / 365,
+          r: scenario.riskFreeRate,
+          sigma,
+          type: "put",
+        });
+        submitTrade({
+          ticker: pp.ticker,
+          action: "sell_put",
+          strike,
+          expiryDate,
+          numContracts: pp.numContracts,
+          premium: bs.price * 100 * pp.numContracts,
+          source: "manual",
+        });
+      }
+
       router.push("/simulate");
     } catch {
       setLaunching(false);
@@ -1214,7 +1436,14 @@ export default function SetupPage() {
         {step === 1 && <StepScenario />}
         {step === 2 && <StepPortfolio />}
         {step === 3 && <StepRules scenario={scenario} />}
-        {step === 4 && <StepReview launching={launching} />}
+        {step === 4 && (
+          <StepReview
+            launching={launching}
+            preSimPuts={preSimPuts}
+            onAddPut={addPreSimPut}
+            onRemovePut={removePreSimPut}
+          />
+        )}
       </div>
       <div className="flex gap-3 mt-8">
         {step > 0 && (

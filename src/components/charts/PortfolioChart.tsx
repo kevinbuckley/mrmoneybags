@@ -32,6 +32,8 @@ interface ChartPoint {
   cumulativeReturn: number;
   benchmark?: number;
   ghost?: number;
+  eventLabel?: string;
+  eventDescription?: string;
 }
 
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
@@ -55,6 +57,12 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
       )}
       {ghost !== undefined && (
         <p className="font-mono text-xs text-muted mt-0.5">Prev: {formatCurrency(ghost, true)}</p>
+      )}
+      {point?.eventLabel && (
+        <div className="mt-1.5 pt-1.5 border-t border-border/50">
+          <p className="text-accent text-xs font-semibold">📰 {point.eventLabel}</p>
+          <p className="text-secondary text-xs leading-snug mt-0.5 max-w-[180px]">{point.eventDescription}</p>
+        </div>
       )}
     </div>
   );
@@ -81,13 +89,21 @@ export function PortfolioChart({
       ? history[0].totalValue / ghostData[0].totalValue
       : 1;
 
-  const chartData: ChartPoint[] = history.map((snap, i) => ({
-    date: snap.date,
-    totalValue: snap.totalValue,
-    cumulativeReturn: snap.cumulativeReturn,
-    benchmark: benchmarkData?.[i]?.value,
-    ghost: ghostData?.[i] ? ghostData[i].totalValue * ghostScale : undefined,
-  }));
+  // Build a date → event lookup so each data point can carry its headline
+  const eventMap = new Map(events.map((e) => [e.date, e]));
+
+  const chartData: ChartPoint[] = history.map((snap, i) => {
+    const evt = eventMap.get(snap.date);
+    return {
+      date: snap.date,
+      totalValue: snap.totalValue,
+      cumulativeReturn: snap.cumulativeReturn,
+      benchmark: benchmarkData?.[i]?.value,
+      ghost: ghostData?.[i] ? ghostData[i].totalValue * ghostScale : undefined,
+      eventLabel: evt?.label,
+      eventDescription: evt?.description,
+    };
+  });
 
   const hasBenchmark = !!benchmarkData && benchmarkData.length > 0;
   const hasGhost = !!ghostData && ghostData.length > 0;
