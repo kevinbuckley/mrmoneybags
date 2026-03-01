@@ -31,7 +31,8 @@ export function sharpeRatio(
   riskFreeRate: number = 0.02
 ): number {
   const vol = annualizedVolatility(dailyReturns);
-  if (vol === 0) return 0;
+  // Guard against near-zero volatility (flat series, floating-point noise)
+  if (vol < 1e-9) return 0;
   const mean = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
   const annualizedReturn = mean * 252;
   return (annualizedReturn - riskFreeRate) / vol;

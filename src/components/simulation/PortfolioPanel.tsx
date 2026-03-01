@@ -25,10 +25,13 @@ export function PortfolioPanel() {
   const history = state?.history ?? [];
   const startingValue = portfolio?.startingValue ?? 0;
   const totalValue = portfolio?.totalValue ?? startingValue;
+  // Only count equity/etf/crypto positions (not options) as "invested" for display
   const investedValue = portfolio
-    ? portfolio.positions.reduce((s, p) => s + p.currentValue, 0)
+    ? portfolio.positions.filter((p) => p.type !== "option").reduce((s, p) => s + p.currentValue, 0)
     : 0;
   const investedPct = totalValue > 0 ? (investedValue / totalValue) * 100 : 0;
+  const freeCash = portfolio ? Math.max(0, portfolio.cashBalance - portfolio.reservedCash) : 0;
+  const hasReservedCash = (portfolio?.reservedCash ?? 0) > 0.01;
   const prevDayValue = history[history.length - 2]?.totalValue ?? startingValue;
   const dayChange = totalValue - prevDayValue;
   const dayChangePct = prevDayValue > 0 ? (dayChange / prevDayValue) * 100 : 0;
@@ -87,8 +90,12 @@ export function PortfolioPanel() {
                   <span className="text-secondary">{formatCurrency(investedValue, true)}</span>
                   {portfolio.cashBalance > 0.01 && (
                     <>
-                      {" · "}Cash{" "}
-                      <span className="text-secondary">{formatCurrency(portfolio.cashBalance, true)}</span>
+                      {" · "}
+                      {hasReservedCash ? "Free " : ""}Cash{" "}
+                      <span className="text-secondary">{formatCurrency(freeCash, true)}</span>
+                      {hasReservedCash && (
+                        <> · <span className="text-muted">Locked {formatCurrency(portfolio.reservedCash, true)}</span></>
+                      )}
                     </>
                   )}
                 </p>
@@ -152,7 +159,10 @@ export function PortfolioPanel() {
                 <div className="flex-1">
                   <div className="flex items-center justify-between">
                     <span className="text-secondary text-xs font-mono">
-                      {formatCurrency(portfolio.cashBalance)}
+                      {hasReservedCash
+                        ? <>{formatCurrency(freeCash)} <span className="text-muted">({formatCurrency(portfolio.reservedCash)} locked)</span></>
+                        : formatCurrency(portfolio.cashBalance)
+                      }
                     </span>
                     <span className="text-muted text-xs font-mono">
                       {totalValue > 0

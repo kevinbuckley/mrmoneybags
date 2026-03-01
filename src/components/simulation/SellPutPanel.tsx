@@ -37,6 +37,8 @@ export function SellPutPanel({ open, onClose }: SellPutPanelProps) {
   const scenario = state?.config.scenario;
   const currentDateIndex = state?.currentDateIndex ?? 0;
   const cashBalance = state?.portfolio.cashBalance ?? 0;
+  const reservedCash = state?.portfolio.reservedCash ?? 0;
+  const freeCash = Math.max(0, cashBalance - reservedCash);
   const riskFreeRate = scenario?.riskFreeRate ?? 0.02;
 
   // Available tickers for the current scenario
@@ -110,8 +112,9 @@ export function SellPutPanel({ open, onClose }: SellPutPanelProps) {
   const totalPremium = premiumPerContract * contracts;
 
   // Collateral requirement: cash-secured = strike × 100 × contracts
+  // Compare against free cash only (cashBalance - already reserved collateral)
   const collateral = strike * 100 * contracts;
-  const hasSufficientCash = cashBalance >= collateral;
+  const hasSufficientCash = freeCash >= collateral;
 
   // Risk metrics
   const breakEven = strike - (bsResult?.price ?? 0);
@@ -256,7 +259,7 @@ export function SellPutPanel({ open, onClose }: SellPutPanelProps) {
         {/* Collateral warning */}
         {!hasSufficientCash && (
           <div className="bg-loss/10 border border-loss/30 rounded-xl px-3 py-2 text-xs text-loss">
-            ⚠ Insufficient cash. Need {formatCurrency(collateral)} collateral, have {formatCurrency(cashBalance)}.
+            ⚠ Insufficient cash. Need {formatCurrency(collateral)} collateral, have {formatCurrency(freeCash)} free.
           </div>
         )}
 

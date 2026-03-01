@@ -60,7 +60,8 @@ export function useAnalytics(): SimulationAnalytics | null {
       : base.totalReturnPct;
 
     const grade = computeGrade(base.totalReturnPct, base.sharpeRatio);
+    const totalRulesFired = state.rulesLog.length;
 
-    return { ...base, hodlReturnPct, grade };
+    return { ...base, hodlReturnPct, grade, totalRulesFired };
   }, [state, priceData]);
 }

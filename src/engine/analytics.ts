@@ -49,15 +49,15 @@ export function computeAnalytics(
     startingValue: first.totalValue,
     totalReturnPct,
     sharpeRatio: sharpeRatio(dailyReturns, riskFreeRate),
-    maxDrawdownPct: maxDrawdown(history),
+    maxDrawdownPct: maxDrawdown(history) * 100, // convert decimal → percentage points (e.g. -31.2)
     annualizedVolatility: annualizedVolatility(dailyReturns),
     beta: beta(dailyReturns, benchmarkReturns),
-    bestDayReturn: bestDay.return,
+    bestDayReturn: bestDay.return * 100,  // convert to percentage points (e.g. +5.2)
     bestDayDate: bestDay.date,
-    worstDayReturn: worstDay.return,
+    worstDayReturn: worstDay.return * 100, // convert to percentage points (e.g. -7.8)
     worstDayDate: worstDay.date,
     totalManualTrades: 0, // TODO: count from trade log
-    totalRulesFired: 0, // TODO: count from rules log
+    totalRulesFired: 0, // filled in by useAnalytics from state.rulesLog
     hodlReturnPct: 0, // computed in useAnalytics (needs priceData)
     grade: "F",       // computed in useAnalytics after hodl + sharpe known
   };
