@@ -11,7 +11,6 @@ import { PlaybackControls } from "@/components/simulation/PlaybackControls";
 import { PortfolioPanel } from "@/components/simulation/PortfolioPanel";
 import { AdInterstitial } from "@/components/ads/AdInterstitial";
 import { SellPutPanel } from "@/components/simulation/SellPutPanel";
-import { playSound } from "@/lib/sound";
 
 export default function SimulatePage() {
   const router = useRouter();
@@ -20,6 +19,7 @@ export default function SimulatePage() {
   const state = useSimulationStore((s) => s.state);
   const priceData = useSimulationStore((s) => s.priceData);
   const play = useSimulationStore((s) => s.play);
+  const pause = useSimulationStore((s) => s.pause);
   const lastRunHistories = useLeaderboardStore((s) => s.lastRunHistories);
   const hasAutoStarted = useRef(false);
   const [adDismissed, setAdDismissed] = useState(false);
@@ -47,22 +47,6 @@ export default function SimulatePage() {
       router.push("/setup");
     }
   }, [state, router]);
-
-  // Sound: play on significant day moves (>±2%)
-  const histLen = state?.history.length ?? 0;
-  const lastHistory = state?.history;
-  useEffect(() => {
-    if (histLen === 0 || !lastHistory) return;
-    const snap = lastHistory[histLen - 1];
-    if (!snap) return;
-    if (snap.dayReturn > 0.02) playSound("gain_day");
-    else if (snap.dayReturn < -0.02) playSound("loss_day");
-  }, [histLen, lastHistory]);
-
-  // Sound: play completion fanfare
-  useEffect(() => {
-    if (state?.isComplete) playSound("complete");
-  }, [state?.isComplete]);
 
   const history = state?.history ?? [];
   const events = state?.config.scenario.events ?? [];
@@ -118,7 +102,7 @@ export default function SimulatePage() {
       {!state?.isComplete && (
         <div className="px-4 pb-1 flex justify-end">
           <button
-            onClick={() => setSellPutOpen(true)}
+            onClick={() => { pause(); setSellPutOpen(true); }}
             className="text-xs text-secondary border border-border rounded-lg px-3 py-1.5 hover:border-secondary hover:text-primary transition-colors"
           >
             📉 Sell Put

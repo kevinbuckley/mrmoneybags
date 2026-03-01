@@ -17,7 +17,49 @@ import { GifReplayButton } from "@/components/results/GifReplayButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { loadPriceDataMap } from "@/data/loaders";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { playSound } from "@/lib/sound";
+
+// ─── Investor personality ──────────────────────────────────────────────────────
+const CRYPTO_TICKERS = new Set(["BTC", "ETH", "DOGE", "SOL"]);
+const LEVERAGED_TICKERS = new Set(["TQQQ", "SQQQ", "UPRO"]);
+const SAFE_TICKERS = new Set(["TLT", "GLD"]);
+const MEME_TICKERS = new Set(["GME", "DOGE"]);
+
+function computePersonality(
+  allocations: { ticker: string; pct: number }[],
+  manualTrades: number,
+  rulesFired: number,
+  returnPct: number,
+): { type: string; emoji: string; description: string } {
+  const pctOf = (set: Set<string>) =>
+    allocations.filter((a) => set.has(a.ticker)).reduce((s, a) => s + a.pct, 0);
+  const cryptoPct = pctOf(CRYPTO_TICKERS);
+  const leveragedPct = pctOf(LEVERAGED_TICKERS);
+  const safePct = pctOf(SAFE_TICKERS);
+  const memePct = pctOf(MEME_TICKERS);
+  const totalTrades = manualTrades + rulesFired;
+
+  if (leveragedPct >= 40)
+    return { type: "YOLO Trader", emoji: "🎰", description: "Leverage? In this economy? Respect." };
+  if (memePct >= 30)
+    return { type: "Meme Merchant", emoji: "🐸", description: "To the moon. Or straight into the ground." };
+  if (cryptoPct >= 50)
+    return { type: "Crypto Degen", emoji: "🌕", description: "Number go up. Number also go down. Mostly down." };
+  if (manualTrades === 0 && rulesFired === 0)
+    return { type: "HODL Devotee", emoji: "🗿", description: "Buy. Hold. Suffer in silence. Occasionally win." };
+  if (safePct >= 50)
+    return { type: "Safe Haven Seeker", emoji: "🏔️", description: "Bonds and gold. You've been burned before." };
+  if (manualTrades >= 8)
+    return { type: "Overactive Trader", emoji: "🦅", description: "Market timing never works. You'll try anyway." };
+  if (rulesFired >= 5 && manualTrades <= 1)
+    return { type: "Quant", emoji: "🤖", description: "Let the algos cook. Cold, calculated, occasionally wrong." };
+  if (returnPct >= 0.5)
+    return { type: "Market Wizard", emoji: "🔮", description: "How did you do that. Please explain slowly." };
+  if (returnPct <= -0.4)
+    return { type: "Bag Holder", emoji: "💼", description: "You held through all of that. Respect, we think." };
+  if (totalTrades >= 3 && returnPct > 0)
+    return { type: "Active Manager", emoji: "📊", description: "Busy hands, positive outcome. Beginner's luck counts." };
+  return { type: "Balanced Investor", emoji: "⚖️", description: "Diversified, disciplined, boring. Statistically correct." };
+}
 
 const GRADE_COLOR: Record<string, string> = {
   "A+": "text-gain",
@@ -104,9 +146,6 @@ export default function ResultsPage() {
     updateStreak();
     setLastRunHistory(state.config.scenario.slug, state.history);
 
-    // Sound: play completion fanfare or loss sound
-    playSound(analytics.totalReturnPct >= 0 ? "complete" : "loss_day");
-
     // Confetti for big wins
     if (analytics.totalReturnPct >= 0.2) {
       import("canvas-confetti").then(({ default: confetti }) => {
@@ -125,6 +164,28 @@ export default function ResultsPage() {
     resetPortfolio();
     resetRules();
     router.push("/setup");
+  };
+
+  const handleTweet = () => {
+    if (!analytics || !state) return;
+    const ret = analytics.totalReturnPct * 100;
+    const sign = ret >= 0 ? "+" : "";
+    const p = computePersonality(
+      state.config.allocations,
+      analytics.totalManualTrades,
+      analytics.totalRulesFired,
+      analytics.totalReturnPct,
+    );
+    const text = [
+      `I turned ${formatCurrency(analytics.startingValue)} into ${formatCurrency(analytics.finalValue)} (${sign}${ret.toFixed(1)}%) during the ${state.config.scenario.name}.`,
+      `Grade: ${analytics.grade} · ${p.emoji} ${p.type}`,
+      `Think you can do better? moneybags.app`,
+    ].join("\n\n");
+    window.open(
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   const handleCopyChallenge = () => {
@@ -282,6 +343,31 @@ export default function ResultsPage() {
         </div>
       )}
 
+      {/* Investor personality type */}
+      {analytics && state && (() => {
+        const p = computePersonality(
+          state.config.allocations,
+          analytics.totalManualTrades,
+          analytics.totalRulesFired,
+          analytics.totalReturnPct,
+        );
+        return (
+          <div className="bg-elevated border border-border rounded-xl px-4 py-3 mb-6 flex items-center gap-3">
+            <span className="text-3xl">{p.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-primary font-semibold text-sm">{p.type}</p>
+              <p className="text-secondary text-xs italic">{p.description}</p>
+            </div>
+            <button
+              onClick={handleTweet}
+              className="shrink-0 text-xs text-secondary border border-border rounded-lg px-3 py-1.5 hover:border-secondary hover:text-primary transition-colors"
+            >
+              𝕏 Share
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Full history chart + scrubber */}
       <div className="mb-6">
         <PortfolioChart
@@ -392,6 +478,13 @@ export default function ResultsPage() {
         </button>
         {/* Animated GIF replay */}
         <GifReplayButton history={history} scenario={state.config.scenario} />
+        {/* Tweet results */}
+        <button
+          onClick={handleTweet}
+          className="bg-elevated text-primary font-medium rounded-xl px-6 py-3 text-sm border border-border min-h-[44px] flex items-center justify-center gap-2 hover:border-secondary transition-colors"
+        >
+          𝕏 Post Results
+        </button>
         {/* Challenge a friend */}
         <button
           onClick={handleCopyChallenge}
