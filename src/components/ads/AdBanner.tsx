@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 const PUB_ID = "ca-pub-2954508563135581";
-const SLOT_ID = "REPLACE_WITH_SLOT_ID"; // paste simulate-banner slot ID here
+const SLOT_ID = "4359398745";
 
 interface AdBannerProps {
   className?: string;
