@@ -37,6 +37,7 @@ const SCENARIO_EMOJI: Record<string, string> = {
   "2023-ai-boom": "🟢",
   "dotcom-recovery": "🟢",
   "2022-rate-hike": "🔴",
+  "the-future": "🔮",
   "tutorial": "🎓",
 };
 

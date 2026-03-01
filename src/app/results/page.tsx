@@ -400,6 +400,44 @@ export default function ResultsPage() {
         )}
       </div>
 
+      {/* Events Timeline */}
+      {events.length > 0 && (
+        <div className="mb-6">
+          <p className="text-xs text-muted uppercase tracking-wider font-mono mb-3">Market Events</p>
+          <div className="flex flex-col gap-2">
+            {events.map((evt) => {
+              // Find snapshot on or after the event date to show portfolio day-return
+              const snapIdx = history.findIndex((s) => s.date >= evt.date);
+              const snap = snapIdx > 0 ? history[snapIdx] : null;
+              const dayReturnPct = snap ? snap.dayReturn * 100 : null;
+              const isPositive = dayReturnPct !== null && dayReturnPct >= 0;
+              return (
+                <div
+                  key={evt.date}
+                  className="bg-elevated border border-border rounded-xl px-4 py-3 flex gap-3 items-start"
+                >
+                  <span className="text-base shrink-0 mt-0.5">📰</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-primary text-xs font-semibold leading-snug">{evt.label}</p>
+                      <div className="flex flex-col items-end shrink-0 gap-0.5">
+                        <span className="text-muted text-xs font-mono">{formatDate(evt.date)}</span>
+                        {dayReturnPct !== null && (
+                          <span className={`text-xs font-mono font-bold ${isPositive ? "text-gain" : "text-loss"}`}>
+                            {isPositive ? "+" : ""}{dayReturnPct.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-secondary text-xs mt-0.5 leading-snug">{evt.description}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Analytics grid */}
       {analytics ? (
         <div className="mb-6">
