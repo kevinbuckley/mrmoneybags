@@ -54,6 +54,8 @@ export interface TradeOrder {
     | "move_to_cash"
     /** Write a cash-secured put; creates short option position, credits premium to cash */
     | "sell_put"
+    /** Write a covered call; creates short call option position, credits premium to cash */
+    | "sell_call"
     /** Buy back an open short option at its current market value */
     | "close_option";
   amount?: number;    // dollar amount (for buy)

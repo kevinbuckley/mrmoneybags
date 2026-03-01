@@ -9,7 +9,9 @@ export type RuleSubject =
   | "market_change_pct"
   | "days_elapsed"
   /** % drop from peak close price since simulation start (positive = fallen from peak) */
-  | "trailing_stop_pct";
+  | "trailing_stop_pct"
+  /** Cumulative % return of a position since entry (positive = profit) */
+  | "position_return_pct";
 
 export type RuleOperator = "gt" | "lt" | "gte" | "lte";
 

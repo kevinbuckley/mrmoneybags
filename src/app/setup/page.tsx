@@ -51,12 +51,14 @@ const SUBJECT_LABELS: Record<RuleSubject, string> = {
   market_change_pct: "Market Change % (SPY)",
   days_elapsed: "Days Elapsed",
   trailing_stop_pct: "Trailing Stop (% below peak)",
+  position_return_pct: "Position Return % (from entry)",
 };
 
 const SUBJECT_NEEDS_TICKER = new Set<RuleSubject>([
   "position_change_pct",
   "position_weight_pct",
   "trailing_stop_pct",
+  "position_return_pct",
 ]);
 
 const ACTION_LABELS: Record<RuleActionType, string> = {
@@ -253,6 +255,45 @@ const RULE_TEMPLATES: RuleTemplate[] = [
       action: { type: "buy" as RuleActionType, ticker: v.ticker, amount: parseFloat(v.amount) || 5000 },
       firedCount: 0,
       cooldownTicks: 5,
+    }),
+  },
+  {
+    id: "periodic-rebalance",
+    emoji: "🔄",
+    name: "Periodic rebalance",
+    description: "Trim or add to a position to keep it at your target weight — fires every N days",
+    fields: [
+      { id: "ticker", label: "Position to rebalance", type: "ticker" },
+      { id: "targetPct", label: "Target portfolio weight (%)", type: "pct", placeholder: "30", defaultValue: "30", min: 1, max: 99 },
+      { id: "period", label: "Rebalance every N days", type: "pct", placeholder: "30", defaultValue: "30", min: 1, max: 365 },
+    ],
+    preview: (v) => `Every ${v.period || "?"} days → rebalance ${v.ticker || "ticker"} to ${v.targetPct || "?"}%`,
+    build: (v, _n) => ({
+      label: `Rebalance ${v.ticker} to ${v.targetPct}% every ${v.period} days`,
+      enabled: true,
+      conditions: [{ subject: "days_elapsed" as RuleSubject, operator: "gte" as RuleOperator, value: parseFloat(v.period) || 30 }],
+      action: { type: "rebalance" as RuleActionType, ticker: v.ticker, pct: parseFloat(v.targetPct) || 30 },
+      firedCount: 0,
+      cooldownTicks: Math.max(1, parseFloat(v.period) || 30),
+    }),
+  },
+  {
+    id: "stop-limit",
+    emoji: "🚨",
+    name: "Stop-limit (from entry)",
+    description: "Sell a position if its total return from entry drops below a threshold",
+    fields: [
+      { id: "ticker", label: "Position to protect", type: "ticker" },
+      { id: "pct", label: "Sell if total loss from entry exceeds (%)", type: "pct", placeholder: "15", defaultValue: "15", min: 1, max: 99 },
+    ],
+    preview: (v) => `IF ${v.ticker || "ticker"} down >${v.pct || "?"}% from entry → sell all`,
+    build: (v, _n) => ({
+      label: `Stop-limit ${v.ticker} at -${v.pct}% from entry`,
+      enabled: true,
+      conditions: [{ subject: "position_return_pct" as RuleSubject, operator: "lte" as RuleOperator, value: -(parseFloat(v.pct) || 15), ticker: v.ticker }],
+      action: { type: "sell_all" as RuleActionType, ticker: v.ticker },
+      firedCount: 0,
+      cooldownTicks: 1,
     }),
   },
 ];

@@ -166,10 +166,10 @@ export function PortfolioPanel() {
           </div>
         )}
 
-        {/* Short puts section */}
+        {/* Short options section (puts + covered calls) */}
         {portfolio && portfolio.positions.some((p) => p.type === "option") && (
           <div className="mt-2 pt-2 border-t border-border/50">
-            <p className="text-xs text-muted font-mono mb-1">Short Puts</p>
+            <p className="text-xs text-muted font-mono mb-1">Short Options</p>
             {portfolio.positions.filter((p) => p.type === "option").map((pos) => {
               const config = pos.optionConfig;
               if (!config) return null;
@@ -183,12 +183,15 @@ export function PortfolioPanel() {
                     (1000 * 60 * 60 * 24)
                   ))
                 : 0;
+              const optionLabel = config.type === "call"
+                ? `${config.underlying} $${config.strike}c`
+                : `${config.underlying} $${config.strike}p`;
               return (
                 <div key={pos.id} className="flex items-center gap-2 py-1">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-xs font-mono text-secondary truncate">
-                        {config.underlying} ${config.strike}p · {dte} DTE
+                        {optionLabel} · {dte} DTE
                       </span>
                       <span className={`text-xs font-mono font-bold shrink-0 ${isProfit ? "text-gain" : "text-loss"}`}>
                         {isProfit ? "+" : ""}{formatCurrency(pnl)}

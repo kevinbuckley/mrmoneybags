@@ -11,6 +11,7 @@ import { PlaybackControls } from "@/components/simulation/PlaybackControls";
 import { PortfolioPanel } from "@/components/simulation/PortfolioPanel";
 import { AdInterstitial } from "@/components/ads/AdInterstitial";
 import { SellPutPanel } from "@/components/simulation/SellPutPanel";
+import { CoveredCallPanel } from "@/components/simulation/CoveredCallPanel";
 
 export default function SimulatePage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function SimulatePage() {
   const hasAutoStarted = useRef(false);
   const [adDismissed, setAdDismissed] = useState(false);
   const [sellPutOpen, setSellPutOpen] = useState(false);
+  const [coveredCallOpen, setCoveredCallOpen] = useState(false);
 
   // Auto-start only after ad is dismissed
   useEffect(() => {
@@ -98,14 +100,20 @@ export default function SimulatePage() {
         </div>
       )}
 
-      {/* Sell Put button (only while simulation is running) */}
+      {/* Options buttons (only while simulation is running) */}
       {!state?.isComplete && (
-        <div className="px-4 pb-1 flex justify-end">
+        <div className="px-4 pb-1 flex justify-end gap-2">
           <button
             onClick={() => { pause(); setSellPutOpen(true); }}
             className="text-xs text-secondary border border-border rounded-lg px-3 py-1.5 hover:border-secondary hover:text-primary transition-colors"
           >
             📉 Sell Put
+          </button>
+          <button
+            onClick={() => { pause(); setCoveredCallOpen(true); }}
+            className="text-xs text-secondary border border-border rounded-lg px-3 py-1.5 hover:border-secondary hover:text-primary transition-colors"
+          >
+            📈 Sell Call
           </button>
         </div>
       )}
@@ -115,6 +123,9 @@ export default function SimulatePage() {
 
       {/* Sell Put Panel */}
       <SellPutPanel open={sellPutOpen} onClose={() => setSellPutOpen(false)} />
+
+      {/* Covered Call Panel */}
+      <CoveredCallPanel open={coveredCallOpen} onClose={() => setCoveredCallOpen(false)} />
 
       {/* Narrator popups (fixed top-right, non-blocking) */}
       <NarratorPopup />

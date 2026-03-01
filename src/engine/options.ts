@@ -18,7 +18,7 @@ export function recomputeOptionValue(
   const config = position.optionConfig;
   if (!config) return position.currentValue;
 
-  const isShort = config.strategy === "short_put";
+  const isShort = config.strategy === "short_put" || config.strategy === "covered_call";
 
   const currentPrice = underlyingSeries[currentDateIndex]?.close ?? 0;
   if (currentPrice === 0) return 0;
@@ -110,6 +110,50 @@ export function processShortPutExpiry(
   const intrinsicPerShare = config.strike - underlyingPrice;
   const assignmentLoss = intrinsicPerShare * 100 * config.numContracts;
   const newCash = Math.max(portfolio.cashBalance - assignmentLoss, 0); // can't go below 0
+  const totalPositionValue = positions.reduce((s, p) => s + p.currentValue, 0);
+  return {
+    portfolio: {
+      ...portfolio,
+      positions,
+      cashBalance: newCash,
+      totalValue: newCash + totalPositionValue,
+    },
+    wasAssigned: true,
+  };
+}
+
+/**
+ * Process expiry of a covered call (cash-settled).
+ *
+ * OTM (stockPrice <= strike): position removed, full premium profit kept.
+ * ITM (stockPrice > strike): cash debited by (stockPrice − strike) × 100 × numContracts,
+ *   simulating the call being exercised against you (your upside is capped at strike).
+ *
+ * Returns { portfolio: updated Portfolio, wasAssigned: boolean }
+ */
+export function processShortCallExpiry(
+  portfolio: Portfolio,
+  pos: Position,
+  underlyingPrice: number
+): { portfolio: Portfolio; wasAssigned: boolean } {
+  const config = pos.optionConfig;
+  if (!config) return { portfolio, wasAssigned: false };
+
+  const positions = portfolio.positions.filter((p) => p.id !== pos.id);
+  const isITM = underlyingPrice > config.strike; // call ITM when stock > strike
+
+  if (!isITM) {
+    const totalPositionValue = positions.reduce((s, p) => s + p.currentValue, 0);
+    return {
+      portfolio: { ...portfolio, positions, totalValue: portfolio.cashBalance + totalPositionValue },
+      wasAssigned: false,
+    };
+  }
+
+  // ITM — upside capped: pay the intrinsic value
+  const intrinsicPerShare = underlyingPrice - config.strike;
+  const assignmentLoss = intrinsicPerShare * 100 * config.numContracts;
+  const newCash = Math.max(portfolio.cashBalance - assignmentLoss, 0);
   const totalPositionValue = positions.reduce((s, p) => s + p.currentValue, 0);
   return {
     portfolio: {

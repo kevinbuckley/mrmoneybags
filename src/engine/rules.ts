@@ -104,6 +104,14 @@ function getConditionValue(
       if (peak === 0) return 0;
       return ((peak - currentClose) / peak) * 100;
     }
+
+    case "position_return_pct": {
+      // Cumulative % return of a position since entry (positive = profit)
+      if (!condition.ticker) return null;
+      const pos = portfolio.positions.find((p) => p.ticker === condition.ticker);
+      if (!pos || pos.entryPrice === 0) return null;
+      return ((pos.currentPrice - pos.entryPrice) / pos.entryPrice) * 100;
+    }
   }
 }
 

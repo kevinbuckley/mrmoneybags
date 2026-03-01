@@ -9,7 +9,7 @@ import type { NarratorEvent } from "@/types/narrator";
 
 import { applyTrade, recomputeValues } from "./portfolio";
 import { evaluateRules } from "./rules";
-import { recomputeOptionValue, isExpiring, expiryIntrinsicValue, processShortPutExpiry } from "./options";
+import { recomputeOptionValue, isExpiring, expiryIntrinsicValue, processShortPutExpiry, processShortCallExpiry } from "./options";
 import { generateNarratorEvent } from "@/lib/narrator";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -175,8 +175,8 @@ export function advanceTick(
   }
 
   // 4. Revalue and settle options (two-pass: settle expiries first, then revalue live)
-  // Pass 4a: settle expiring short puts (cash-settled) + expiring long options
-  const shortPutExpiryEvents: NarratorEvent[] = [];
+  // Pass 4a: settle expiring short puts + covered calls (cash-settled) + expiring long options
+  const shortOptionExpiryEvents: NarratorEvent[] = [];
   for (const pos of portfolio.positions) {
     if (pos.type !== "option" || !pos.optionConfig) continue;
     if (!isExpiring(pos, date)) continue;
@@ -187,7 +187,15 @@ export function advanceTick(
     if (pos.optionConfig.strategy === "short_put") {
       const { portfolio: settled, wasAssigned } = processShortPutExpiry(portfolio, pos, underlyingClose);
       portfolio = settled;
-      shortPutExpiryEvents.push(makeEvent(
+      shortOptionExpiryEvents.push(makeEvent(
+        wasAssigned ? "option_exercised" : "option_expired_worthless",
+        { ticker: pos.optionConfig.underlying, scenario: scenarioName },
+        date
+      ));
+    } else if (pos.optionConfig.strategy === "covered_call") {
+      const { portfolio: settled, wasAssigned } = processShortCallExpiry(portfolio, pos, underlyingClose);
+      portfolio = settled;
+      shortOptionExpiryEvents.push(makeEvent(
         wasAssigned ? "option_exercised" : "option_expired_worthless",
         { ticker: pos.optionConfig.underlying, scenario: scenarioName },
         date
@@ -201,8 +209,11 @@ export function advanceTick(
     ...portfolio,
     positions: portfolio.positions.map((pos) => {
       if (pos.type !== "option" || !pos.optionConfig) return pos;
-      // Short puts that expired were already removed in pass 4a
-      if (pos.optionConfig.strategy === "short_put" && isExpiring(pos, date)) return pos;
+      // Short options that expired were already removed in pass 4a
+      const isShortExpired =
+        (pos.optionConfig.strategy === "short_put" || pos.optionConfig.strategy === "covered_call") &&
+        isExpiring(pos, date);
+      if (isShortExpired) return pos;
 
       const underlyingSeries = priceData.get(pos.optionConfig.underlying);
       if (!underlyingSeries) return pos;
@@ -254,7 +265,7 @@ export function advanceTick(
     portfolio,
     history: [...state.history, snapshot],
     rulesLog: [...state.rulesLog, ...newRulesLog],
-    narratorQueue: [...state.narratorQueue, ...shortPutExpiryEvents, ...narratorEvents],
+    narratorQueue: [...state.narratorQueue, ...shortOptionExpiryEvents, ...narratorEvents],
     pendingTrades: [],
     isComplete,
     config: { ...state.config, rules: updatedRules },

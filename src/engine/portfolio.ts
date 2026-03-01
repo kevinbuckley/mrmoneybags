@@ -211,6 +211,50 @@ function applyShortPut(
 }
 
 /**
+ * Write (sell) a covered call.
+ * - Premium credited to cash immediately (order.premium must be pre-computed by UI)
+ * - Creates a short call position with currentValue = -premium (liability)
+ * - At expiry ITM (stock > strike): cash debited by (stock − strike) × 100 × contracts
+ */
+function applyShortCall(
+  portfolio: Portfolio,
+  order: TradeOrder,
+  date: string
+): Portfolio {
+  const premium = order.premium ?? 0;
+  const numContracts = order.numContracts ?? 1;
+  const strike = order.strike ?? 0;
+  const expiryDate = order.expiryDate ?? "";
+  if (premium <= 0 || strike <= 0 || !expiryDate) return portfolio;
+
+  const positionId = `${order.ticker}-${strike}c-${expiryDate}-${date}`;
+  const newPos: Position = {
+    id: positionId,
+    ticker: positionId,
+    name: `${order.ticker} $${strike} Call (short) exp ${expiryDate}`,
+    type: "option",
+    quantity: numContracts,
+    entryPrice: premium / numContracts,
+    entryDate: date,
+    currentPrice: premium / numContracts,
+    currentValue: -premium,
+    optionConfig: {
+      underlying: order.ticker,
+      strategy: "covered_call",
+      type: "call",
+      strike,
+      expiryDate,
+      numContracts,
+    },
+  };
+
+  const newCash = portfolio.cashBalance + premium;
+  const positions = [...portfolio.positions, newPos];
+  const totalPositionValue = positions.reduce((s, p) => s + p.currentValue, 0);
+  return { ...portfolio, positions, cashBalance: newCash, totalValue: newCash + totalPositionValue };
+}
+
+/**
  * Close (buy back) an open short option position at its current market value.
  * Debits the cost-to-close from cash and removes the position.
  * order.ticker = position.id (the synthetic option position ID)
@@ -254,6 +298,8 @@ export function applyTrade(
       return applyMoveToCash(portfolio, priceData, date);
     case "sell_put":
       return applyShortPut(portfolio, order, date);
+    case "sell_call":
+      return applyShortCall(portfolio, order, date);
     case "close_option":
       return applyCloseOption(portfolio, order);
   }
